@@ -30,7 +30,7 @@
     <!-- Search / Filter Section -->
     <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 space-y-3 text-xs">
       <div>
-        <label class="block mb-1 text-slate-300 font-medium">รหัสกองทุน (Proj ID) <span class="text-rose-400">*จำเป็น</span></label>
+        <label class="block mb-1 text-slate-300 font-medium">รหัสกองทุน (Proj ID) <span class="text-rose-400">*สำหรับดึง NAV</span></label>
         <input type="text" id="projId" placeholder="เช่น M0001_2552" value="M0001_2552" class="w-full p-2 bg-slate-900 border border-slate-700 rounded text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
       </div>
 
@@ -45,9 +45,14 @@
         </div>
       </div>
 
-      <button onclick="fetchNAV()" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded shadow transition flex items-center justify-center gap-1 text-sm">
-        ⚡ ดึงข้อมูลราคา NAV
-      </button>
+      <div class="grid grid-cols-2 gap-2 pt-1">
+        <button onclick="fetchNAV()" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded shadow transition flex items-center justify-center gap-1 text-xs">
+          ⚡ ดึงข้อมูลราคา NAV
+        </button>
+        <button onclick="fetchAMCs()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded shadow transition flex items-center justify-center gap-1 text-xs">
+          🏢 ดึงรายชื่อ บลจ.
+        </button>
+      </div>
       
       <p id="statusMsg" class="text-center text-xs text-amber-400 hidden"></p>
     </div>
@@ -55,19 +60,18 @@
     <!-- Results Display Section -->
     <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
       <div class="flex justify-between items-center mb-3">
-        <h2 class="font-bold text-sm text-slate-200">📋 ผลลัพธ์ข้อมูลราคา</h2>
+        <h2 id="resultTitle" class="font-bold text-sm text-slate-200">📋 ผลลัพธ์ข้อมูล</h2>
         <span id="resultCount" class="text-xs bg-slate-700 px-2 py-0.5 rounded text-sky-300">0 รายการ</span>
       </div>
 
       <div id="resultsList" class="space-y-2 text-xs max-h-96 overflow-y-auto">
-        <p class="text-center text-slate-500 py-6">ใส่ API Key และกดปุ่ม "ดึงข้อมูลราคา NAV"</p>
+        <p class="text-center text-slate-500 py-6">เลือกปุ่มเพื่อทำการค้นหาข้อมูล</p>
       </div>
     </div>
 
   </div>
 
   <script>
-    // ตั้งค่าเริ่มต้นของวันที่เมื่อโหลดหน้าเว็บ
     window.onload = function() {
       const today = new Date();
       const prior = new Date();
@@ -96,36 +100,27 @@
         return;
       }
       localStorage.setItem('sec_api_key', key);
-      alert('บันทึก API Key ลงในอุปกรณ์เรียบร้อยแล้ว!');
+      alert('บันทึก API Key เรียบร้อยแล้ว!');
     }
 
+    // 1. ฟังก์ชันดึงราคา NAV
     async function fetchNAV() {
-      const apiKey = document.getElementById('apiKey').value.trim() || localStorage.getItem('sec_api_key');
+      const apiKey = getApiKey();
+      if (!apiKey) return;
+
       const projId = document.getElementById('projId').value.trim();
       const startDate = document.getElementById('startDate').value;
       const endDate = document.getElementById('endDate').value;
-      const statusMsg = document.getElementById('statusMsg');
-      const resultsList = document.getElementById('resultsList');
-      const resultCount = document.getElementById('resultCount');
-
-      if (!apiKey) {
-        alert('กรุณากรอก SEC Primary Key ก่อนใช้งานครับ!');
-        return;
-      }
 
       if (!projId) {
-        alert('กรุณากรอก รหัสกองทุน (Proj ID) เช่น M0001_2552 ก่อนกดดึงข้อมูลครับ');
+        alert('กรุณากรอก รหัสกองทุน (Proj ID) เช่น M0001_2552 ก่อนกดครับ');
         return;
       }
 
-      statusMsg.innerText = '⏳ กำลังส่งคำขอไปยัง SEC API...';
-      statusMsg.classList.remove('hidden');
-      resultsList.innerHTML = '<p class="text-center text-slate-400 py-4">กำลังโหลดข้อมูล...</p>';
+      showLoading('⏳ กำลังดึงข้อมูล NAV...');
+      document.getElementById('resultTitle').innerText = '📋 ผลลัพธ์ราคา NAV';
 
-      // SEC Open Data API v2 Endpoint
       const secUrl = `https://api.sec.or.th/v2/fund/daily-info/nav?proj_id=${projId}&nav_date_start=${startDate}&nav_date_end=${endDate}`;
-      
-      // ใช้ AllOrigins Proxy เพื่อทะลุข้อจำกัด CORS บล็อกบนมือถือ
       const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(secUrl)}`;
 
       try {
@@ -137,43 +132,88 @@
           }
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP Error Status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const data = await response.json();
-        displayData(data);
-        statusMsg.classList.add('hidden');
+        const items = data.items || (Array.isArray(data) ? data : []);
+        displayNAVData(items);
 
       } catch (err) {
-        console.error(err);
-        statusMsg.innerText = '❌ เกิดข้อผิดพลาดในการดึงข้อมูล';
-        resultsList.innerHTML = `
-          <div class="p-3 bg-red-950/50 border border-red-800 rounded text-red-300 text-xs space-y-1">
-            <p class="font-bold">การเชื่อมต่อล้มเหลว:</p>
-            <ul class="list-disc list-inside space-y-0.5 text-[11px]">
-              <li>ตรวจสอบว่าใส่ <b>Primary Key</b> ถูกต้อง (ไม่ใช่ Secondary Key)</li>
-              <li>ตรวจสอบว่าใส่รหัสกองทุนถูกต้อง เช่น <code class="bg-slate-800 px-1 rounded">M0001_2552</code></li>
-              <li>หากพึ่งสมัคร Key จาก ก.ล.ต. อาจต้องรอระบบ Activate ประมาณ 5-10 นาที</li>
-            </ul>
-          </div>
-        `;
+        showError(err);
       }
     }
 
-    function displayData(data) {
-      const resultsList = document.getElementById('resultsList');
-      const resultCount = document.getElementById('resultCount');
+    // 2. ฟังก์ชันดึงรายชื่อ บลจ. (AMCs)
+    async function fetchAMCs() {
+      const apiKey = getApiKey();
+      if (!apiKey) return;
 
-      const items = Array.isArray(data) ? data : (data.result || []);
-      resultCount.innerText = `${items.length} รายการ`;
+      showLoading('⏳ กำลังดึงรายชื่อ บลจ...');
+      document.getElementById('resultTitle').innerText = '🏢 รายชื่อ บลจ. ทั้งหมด';
+
+      const secUrl = 'https://api.sec.or.th/v2/fund/general-info/amcs';
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(secUrl)}`;
+
+      try {
+        const response = await fetch(proxyUrl, {
+          method: 'GET',
+          headers: {
+            'Ocp-Apim-Subscription-Key': apiKey,
+            'Cache-Control': 'no-cache'
+          }
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+        const items = data.items || [];
+        displayAMCData(items);
+
+      } catch (err) {
+        showError(err);
+      }
+    }
+
+    // Helper functions
+    function getApiKey() {
+      const apiKey = document.getElementById('apiKey').value.trim() || localStorage.getItem('sec_api_key');
+      if (!apiKey) {
+        alert('กรุณากรอก SEC Primary Key ก่อนใช้งานครับ!');
+        return null;
+      }
+      return apiKey;
+    }
+
+    function showLoading(msg) {
+      const statusMsg = document.getElementById('statusMsg');
+      statusMsg.innerText = msg;
+      statusMsg.classList.remove('hidden');
+      document.getElementById('resultsList').innerHTML = '<p class="text-center text-slate-400 py-4">กำลังโหลดข้อมูล...</p>';
+    }
+
+    function showError(err) {
+      console.error(err);
+      const statusMsg = document.getElementById('statusMsg');
+      statusMsg.innerText = '❌ เกิดข้อผิดพลาดในการดึงข้อมูล';
+      document.getElementById('resultsList').innerHTML = `
+        <div class="p-3 bg-red-950/50 border border-red-800 rounded text-red-300 text-xs">
+          <p class="font-bold mb-1">การเชื่อมต่อล้มเหลว:</p>
+          <p>• ตรวจสอบ Primary Key ว่าถูกต้อง</p>
+          <p>• หากพึ่งสมัคร Key อาจต้องรอระบบ Activate สักครู่</p>
+        </div>
+      `;
+    }
+
+    function displayNAVData(items) {
+      document.getElementById('statusMsg').classList.add('hidden');
+      document.getElementById('resultCount').innerText = `${items.length} รายการ`;
 
       if (items.length === 0) {
-        resultsList.innerHTML = '<p class="text-center text-slate-400 py-4">ไม่พบข้อมูลราคา NAV ในช่วงวันที่เลือก</p>';
+        document.getElementById('resultsList').innerHTML = '<p class="text-center text-slate-400 py-4">ไม่พบข้อมูลราคา NAV</p>';
         return;
       }
 
-      resultsList.innerHTML = items.map(item => `
+      document.getElementById('resultsList').innerHTML = items.map(item => `
         <div class="p-2.5 bg-slate-900/80 border border-slate-700/60 rounded flex justify-between items-center">
           <div>
             <div class="font-bold text-sky-400">${item.proj_id || 'N/A'}</div>
@@ -183,6 +223,26 @@
             <div class="font-bold text-emerald-400 text-sm">${item.net_asset ? Number(item.net_asset).toLocaleString() : (item.nav_per_unit || '-')}</div>
             <div class="text-[10px] text-slate-400">NAV / หน่วย</div>
           </div>
+        </div>
+      `).join('');
+    }
+
+    function displayAMCData(items) {
+      document.getElementById('statusMsg').classList.add('hidden');
+      document.getElementById('resultCount').innerText = `${items.length} บลจ.`;
+
+      if (items.length === 0) {
+        document.getElementById('resultsList').innerHTML = '<p class="text-center text-slate-400 py-4">ไม่พบข้อมูล บลจ.</p>';
+        return;
+      }
+
+      document.getElementById('resultsList').innerHTML = items.map(amc => `
+        <div class="p-2.5 bg-slate-900/80 border border-slate-700/60 rounded space-y-1">
+          <div class="flex justify-between items-center">
+            <span class="font-bold text-emerald-400 text-xs">${amc.comp_name_th || 'ไม่ระบุชื่อ'}</span>
+            <span class="font-mono text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">${amc.unique_id}</span>
+          </div>
+          <div class="text-[11px] text-slate-400 truncate">${amc.comp_name_en || ''}</div>
         </div>
       `).join('');
     }
