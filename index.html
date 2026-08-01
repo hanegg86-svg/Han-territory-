@@ -16,7 +16,7 @@
     </header>
 
     <!-- Settings Section -->
-    <details class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+    <details class="bg-slate-800 rounded-lg p-4 border border-slate-700" open>
       <summary class="font-semibold cursor-pointer text-sm text-sky-300">⚙️ ตั้งค่า API Key & ตัวเลือก</summary>
       <div class="mt-3 space-y-3 text-xs">
         <div>
@@ -30,8 +30,8 @@
     <!-- Search / Filter Section -->
     <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 space-y-3 text-xs">
       <div>
-        <label class="block mb-1 text-slate-300 font-medium">รหัสกองทุน (Proj ID)</label>
-        <input type="text" id="projId" placeholder="เช่น M0001_2552" class="w-full p-2 bg-slate-900 border border-slate-700 rounded text-slate-100 focus:outline-none focus:border-sky-500">
+        <label class="block mb-1 text-slate-300 font-medium">รหัสกองทุน (Proj ID) <span class="text-rose-400">*จำเป็น</span></label>
+        <input type="text" id="projId" placeholder="เช่น M0001_2552" value="M0001_2552" class="w-full p-2 bg-slate-900 border border-slate-700 rounded text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
       </div>
 
       <div class="grid grid-cols-2 gap-2">
@@ -60,14 +60,14 @@
       </div>
 
       <div id="resultsList" class="space-y-2 text-xs max-h-96 overflow-y-auto">
-        <p class="text-center text-slate-500 py-6">ยังไม่มีข้อมูล กดปุ่ม "ดึงข้อมูลราคา NAV"</p>
+        <p class="text-center text-slate-500 py-6">ใส่ API Key และกดปุ่ม "ดึงข้อมูลราคา NAV"</p>
       </div>
     </div>
 
   </div>
 
   <script>
-    // Set default dates (Today and 7 days ago)
+    // ตั้งค่าเริ่มต้นของวันที่เมื่อโหลดหน้าเว็บ
     window.onload = function() {
       const today = new Date();
       const prior = new Date();
@@ -91,8 +91,12 @@
 
     function saveSettings() {
       const key = document.getElementById('apiKey').value.trim();
+      if (!key) {
+        alert('กรุณากรอก API Key ก่อนบันทึกครับ');
+        return;
+      }
       localStorage.setItem('sec_api_key', key);
-      alert('บันทึก API Key เรียบร้อยแล้ว!');
+      alert('บันทึก API Key ลงในอุปกรณ์เรียบร้อยแล้ว!');
     }
 
     async function fetchNAV() {
@@ -105,34 +109,36 @@
       const resultCount = document.getElementById('resultCount');
 
       if (!apiKey) {
-        alert('กรุณากรอก API Key ก่อนใช้งานครับ!');
+        alert('กรุณากรอก SEC Primary Key ก่อนใช้งานครับ!');
         return;
       }
 
-      statusMsg.innerText = '⏳ กำลังดึงข้อมูลผ่าน CORS Proxy...';
+      if (!projId) {
+        alert('กรุณากรอก รหัสกองทุน (Proj ID) เช่น M0001_2552 ก่อนกดดึงข้อมูลครับ');
+        return;
+      }
+
+      statusMsg.innerText = '⏳ กำลังส่งคำขอไปยัง SEC API...';
       statusMsg.classList.remove('hidden');
       resultsList.innerHTML = '<p class="text-center text-slate-400 py-4">กำลังโหลดข้อมูล...</p>';
 
-      // Construct Target SEC API Endpoint v2
-      let secUrl = `https://api.sec.or.th/v2/fund/daily-info/nav?nav_date_start=${startDate}&nav_date_end=${endDate}`;
-      if (projId) {
-        secUrl += `&proj_id=${projId}`;
-      }
-
-      // Wrap with CORS Proxy to bypass browser restrictions on mobile
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(secUrl)}`;
+      // SEC Open Data API v2 Endpoint
+      const secUrl = `https://api.sec.or.th/v2/fund/daily-info/nav?proj_id=${projId}&nav_date_start=${startDate}&nav_date_end=${endDate}`;
+      
+      // ใช้ AllOrigins Proxy เพื่อทะลุข้อจำกัด CORS บล็อกบนมือถือ
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(secUrl)}`;
 
       try {
         const response = await fetch(proxyUrl, {
           method: 'GET',
           headers: {
             'Ocp-Apim-Subscription-Key': apiKey,
-            'Accept': 'application/json'
+            'Cache-Control': 'no-cache'
           }
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP Error: ${response.status}`);
+          throw new Error(`HTTP Error Status: ${response.status}`);
         }
 
         const data = await response.json();
@@ -143,11 +149,12 @@
         console.error(err);
         statusMsg.innerText = '❌ เกิดข้อผิดพลาดในการดึงข้อมูล';
         resultsList.innerHTML = `
-          <div class="p-3 bg-red-950/50 border border-red-800 rounded text-red-300 text-xs">
-            <p class="font-bold mb-1">การเชื่อมต่อล้มเหลว:</p>
-            <ul class="list-disc list-inside space-y-1">
-              <li>ตรวจสอบว่าได้ใส่ SEC Primary Key ถูกต้อง</li>
-              <li>แนะนำให้ลองพิมพ์ระบุ <b>รหัสกองทุน (Proj ID)</b> เช่น <code class="bg-slate-800 px-1 rounded">M0001_2552</code></li>
+          <div class="p-3 bg-red-950/50 border border-red-800 rounded text-red-300 text-xs space-y-1">
+            <p class="font-bold">การเชื่อมต่อล้มเหลว:</p>
+            <ul class="list-disc list-inside space-y-0.5 text-[11px]">
+              <li>ตรวจสอบว่าใส่ <b>Primary Key</b> ถูกต้อง (ไม่ใช่ Secondary Key)</li>
+              <li>ตรวจสอบว่าใส่รหัสกองทุนถูกต้อง เช่น <code class="bg-slate-800 px-1 rounded">M0001_2552</code></li>
+              <li>หากพึ่งสมัคร Key จาก ก.ล.ต. อาจต้องรอระบบ Activate ประมาณ 5-10 นาที</li>
             </ul>
           </div>
         `;
@@ -173,7 +180,7 @@
             <div class="text-[10px] text-slate-400">วันที่: ${item.nav_date ? item.nav_date.substring(0, 10) : '-'}</div>
           </div>
           <div class="text-right">
-            <div class="font-bold text-emerald-400 text-sm">${item.net_asset ? Number(item.net_asset).toLocaleString() : item.nav_per_unit || '-'}</div>
+            <div class="font-bold text-emerald-400 text-sm">${item.net_asset ? Number(item.net_asset).toLocaleString() : (item.nav_per_unit || '-')}</div>
             <div class="text-[10px] text-slate-400">NAV / หน่วย</div>
           </div>
         </div>
