@@ -31,7 +31,7 @@
     <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 space-y-3 text-xs">
       <div>
         <label class="block mb-1 text-slate-300 font-medium">รหัสกองทุน (Proj ID)</label>
-        <input type="text" id="projId" placeholder="เช่น M0001_2552 (เว้นว่าง = ดึงทั้งหมด)" class="w-full p-2 bg-slate-900 border border-slate-700 rounded text-slate-100 focus:outline-none focus:border-sky-500">
+        <input type="text" id="projId" placeholder="เช่น M0001_2552" class="w-full p-2 bg-slate-900 border border-slate-700 rounded text-slate-100 focus:outline-none focus:border-sky-500">
       </div>
 
       <div class="grid grid-cols-2 gap-2">
@@ -109,18 +109,21 @@
         return;
       }
 
-      statusMsg.innerText = '⏳ กำลังดึงข้อมูลจาก ก.ล.ต...';
+      statusMsg.innerText = '⏳ กำลังดึงข้อมูลผ่าน CORS Proxy...';
       statusMsg.classList.remove('hidden');
       resultsList.innerHTML = '<p class="text-center text-slate-400 py-4">กำลังโหลดข้อมูล...</p>';
 
-      // Construct API Endpoint v2
-      let apiUrl = `https://api.sec.or.th/v2/fund/daily-info/nav?nav_date_start=${startDate}&nav_date_end=${endDate}`;
+      // Construct Target SEC API Endpoint v2
+      let secUrl = `https://api.sec.or.th/v2/fund/daily-info/nav?nav_date_start=${startDate}&nav_date_end=${endDate}`;
       if (projId) {
-        apiUrl += `&proj_id=${projId}`;
+        secUrl += `&proj_id=${projId}`;
       }
 
+      // Wrap with CORS Proxy to bypass browser restrictions on mobile
+      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(secUrl)}`;
+
       try {
-        const response = await fetch(apiUrl, {
+        const response = await fetch(proxyUrl, {
           method: 'GET',
           headers: {
             'Ocp-Apim-Subscription-Key': apiKey,
@@ -138,13 +141,13 @@
 
       } catch (err) {
         console.error(err);
-        statusMsg.innerText = '❌ เกิดข้อผิดพลาดในการดึงข้อมูล (ตรวจสอบ API Key หรือ CORS)';
+        statusMsg.innerText = '❌ เกิดข้อผิดพลาดในการดึงข้อมูล';
         resultsList.innerHTML = `
           <div class="p-3 bg-red-950/50 border border-red-800 rounded text-red-300 text-xs">
-            <p class="font-bold mb-1">ไม่สามารถเชื่อมต่อได้:</p>
+            <p class="font-bold mb-1">การเชื่อมต่อล้มเหลว:</p>
             <ul class="list-disc list-inside space-y-1">
-              <li>โปรดเช็กว่า API Key ถูกต้อง</li>
-              <li>หากเปิดบนมือถือ อาจติด CORS บล็อก ให้ทดสอบผ่าน PC</li>
+              <li>ตรวจสอบว่าได้ใส่ SEC Primary Key ถูกต้อง</li>
+              <li>แนะนำให้ลองพิมพ์ระบุ <b>รหัสกองทุน (Proj ID)</b> เช่น <code class="bg-slate-800 px-1 rounded">M0001_2552</code></li>
             </ul>
           </div>
         `;
