@@ -1,617 +1,181 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fund NAV Tracker</title>
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --card-border: #334155;
-            --accent-primary: #38bdf8;
-            --accent-success: #22c55e;
-            --accent-warning: #f59e0b;
-            --accent-danger: #ef4444;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            padding: 12px;
-            padding-bottom: 40px;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        /* Header */
-        header {
-            margin-bottom: 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 4px;
-        }
-
-        h1 {
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: var(--accent-primary);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .subtitle {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 2px;
-        }
-
-        /* Card Section */
-        .card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 14px;
-            padding: 16px;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-        }
-
-        .card-title {
-            font-size: 0.95rem;
-            font-weight: 600;
-            margin-bottom: 12px;
-            color: var(--text-main);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        /* Form Controls */
-        .form-group {
-            margin-bottom: 12px;
-        }
-
-        label {
-            display: block;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-            font-weight: 500;
-        }
-
-        input {
-            width: 100%;
-            padding: 10px 12px;
-            background-color: #0f172a;
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            color: #fff;
-            font-size: 0.85rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        input:focus {
-            border-color: var(--accent-primary);
-        }
-
-        .btn {
-            width: 100%;
-            padding: 12px;
-            background-color: var(--accent-primary);
-            color: #0f172a;
-            border: none;
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 0.9rem;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-            transition: opacity 0.2s;
-        }
-
-        .btn:active {
-            opacity: 0.8;
-        }
-
-        .btn-outline {
-            background-color: transparent;
-            border: 1px solid var(--accent-primary);
-            color: var(--accent-primary);
-        }
-
-        .btn-danger {
-            background-color: transparent;
-            border: 1px solid var(--accent-danger);
-            color: var(--accent-danger);
-        }
-
-        /* List & Grid Items */
-        .fund-item {
-            background-color: #0f172a;
-            border: 1px solid var(--card-border);
-            border-radius: 10px;
-            padding: 12px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 8px;
-        }
-
-        .fund-info .proj-id {
-            font-size: 0.7rem;
-            color: var(--accent-primary);
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .fund-info .fund-name {
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin: 4px 0;
-            line-height: 1.3;
-            color: var(--text-main);
-        }
-
-        .fund-info .date {
-            font-size: 0.7rem;
-            color: var(--text-muted);
-        }
-
-        .fund-val {
-            text-align: right;
-            min-width: 90px;
-        }
-
-        .fund-val .nav {
-            font-size: 1.05rem;
-            font-weight: 700;
-            color: var(--accent-success);
-        }
-
-        .fund-val .change {
-            font-size: 0.65rem;
-            color: var(--text-muted);
-            margin-top: 2px;
-        }
-
-        /* Chart Canvas */
-        .chart-container {
-            position: relative;
-            height: 220px;
-            width: 100%;
-        }
-
-        /* Status & Badge */
-        .badge {
-            font-size: 0.65rem;
-            padding: 2px 6px;
-            border-radius: 4px;
-            background-color: rgba(56, 189, 248, 0.15);
-            color: var(--accent-primary);
-            border: 1px solid rgba(56, 189, 248, 0.3);
-        }
-
-        .status-msg {
-            font-size: 0.75rem;
-            text-align: center;
-            color: var(--text-muted);
-            margin-top: 8px;
-        }
-
-        .quick-tags {
-            display: flex;
-            gap: 6px;
-            overflow-x: auto;
-            padding-bottom: 4px;
-            margin-bottom: 12px;
-        }
-
-        .tag-btn {
-            background-color: #0f172a;
-            border: 1px solid var(--card-border);
-            color: var(--text-muted);
-            font-size: 0.7rem;
-            padding: 4px 8px;
-            border-radius: 6px;
-            white-space: nowrap;
-            cursor: pointer;
-        }
-
-        /* Accordion */
-        details summary {
-            cursor: pointer;
-            list-style: none;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        details summary::-webkit-details-marker {
-            display: none;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fund NAV Tracker (SEC Open Data v2)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-
-    <header>
-        <div>
-            <h1>📊 Fund NAV Tracker</h1>
-            <div class="subtitle">SEC Open Data v2 + Auto Fund Mapping</div>
-        </div>
-        <span class="badge" id="masterStatusBadge">ยังไม่ได้โหลด Master Data</span>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 font-sans">
+  <div class="max-w-md mx-auto space-y-4">
+    
+    <!-- Header -->
+    <header class="border-b border-slate-700 pb-3">
+      <h1 class="text-xl font-bold text-sky-400">📊 Fund NAV Tracker</h1>
+      <p class="text-xs text-slate-400">SEC Open Data v2 API Integration</p>
     </header>
 
-    <!-- Section 1: Settings & API Key Input -->
-    <details class="card" id="settingsCard">
-        <summary class="card-title">
-            <span>⚙️ ตั้งค่า API Key & ข้อมูลกองทุน</span>
-            <span style="font-size: 0.75rem; color: var(--accent-primary);">คลิกเปิด/ปิด</span>
-        </summary>
-        <div style="margin-top: 12px;">
-            <div class="form-group">
-                <label for="apiKey">Subscription Key (Ocp-Apim-Subscription-Key)</label>
-                <input type="password" id="apiKey" placeholder="วาง API Key จากระบบ ก.ล.ต. ที่นี่">
-            </div>
-            
-            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                <button class="btn btn-outline" style="flex: 2;" onclick="saveSettings()">💾 บันทึก Key</button>
-                <button class="btn btn-outline" style="flex: 3;" onclick="syncFundMasterData(true)">🔄 อัปเดตรายชื่อกองทุน</button>
-            </div>
-            <button class="btn btn-danger" onclick="clearAllData()">🗑️ ล้างข้อมูลแคชทั้งหมด</button>
+    <!-- Settings Section -->
+    <details class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+      <summary class="font-semibold cursor-pointer text-sm text-sky-300">⚙️ ตั้งค่า API Key & ตัวเลือก</summary>
+      <div class="mt-3 space-y-3 text-xs">
+        <div>
+          <label class="block mb-1 text-slate-300">SEC Primary Key (Ocp-Apim-Subscription-Key)</label>
+          <input type="password" id="apiKey" placeholder="วาง Primary Key ที่นี่" class="w-full p-2 bg-slate-900 border border-slate-700 rounded text-slate-100 focus:outline-none focus:border-sky-500">
         </div>
+        <button onclick="saveSettings()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-1.5 rounded transition">บันทึกตั้งค่า</button>
+      </div>
     </details>
 
-    <!-- Section 2: Fetch & Query Form -->
-    <div class="card">
-        <div class="card-title">
-            <span>🔍 ดึงข้อมูล NAV รายวัน</span>
-        </div>
-        
-        <div class="form-group">
-            <label>รหัสกองทุน (Proj ID)</label>
-            <input type="text" id="projIdInput" placeholder="เช่น M0001_2552 (เว้นว่าง = ดึงทั้งหมด)">
-        </div>
+    <!-- Search / Filter Section -->
+    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 space-y-3 text-xs">
+      <div>
+        <label class="block mb-1 text-slate-300 font-medium">รหัสกองทุน (Proj ID)</label>
+        <input type="text" id="projId" placeholder="เช่น M0001_2552 (เว้นว่าง = ดึงทั้งหมด)" class="w-full p-2 bg-slate-900 border border-slate-700 rounded text-slate-100 focus:outline-none focus:border-sky-500">
+      </div>
 
-        <div class="quick-tags">
-            <button class="tag-btn" onclick="setProjId('M0001_2552')">M0001_2552</button>
-            <button class="tag-btn" onclick="setProjId('M0000_2550')">M0000_2550</button>
-            <button class="tag-btn" onclick="setProjId('')">ทั้งหมด (Top 20)</button>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block mb-1 text-slate-300 font-medium">วันที่เริ่มต้น</label>
+          <input type="date" id="startDate" class="w-full p-2 bg-slate-900 border border-slate-700 rounded text-slate-100 focus:outline-none focus:border-sky-500">
         </div>
-
-        <div style="display: flex; gap: 8px;">
-            <div class="form-group" style="flex: 1;">
-                <label>วันที่เริ่มต้น</label>
-                <input type="date" id="startDate">
-            </div>
-            <div class="form-group" style="flex: 1;">
-                <label>วันที่สิ้นสุด</label>
-                <input type="date" id="endDate">
-            </div>
+        <div>
+          <label class="block mb-1 text-slate-300 font-medium">วันที่สิ้นสุด</label>
+          <input type="date" id="endDate" class="w-full p-2 bg-slate-900 border border-slate-700 rounded text-slate-100 focus:outline-none focus:border-sky-500">
         </div>
+      </div>
 
-        <button class="btn" onclick="fetchNavData()">
-            <span>⚡ ดึงข้อมูลราคา NAV</span>
-        </button>
-        <div class="status-msg" id="statusMsg">กรุณากรอก API Key ในส่วนตั้งค่าก่อนกดดึงข้อมูล</div>
+      <button onclick="fetchNAV()" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded shadow transition flex items-center justify-center gap-1 text-sm">
+        ⚡ ดึงข้อมูลราคา NAV
+      </button>
+      
+      <p id="statusMsg" class="text-center text-xs text-amber-400 hidden"></p>
     </div>
 
-    <!-- Section 3: Chart Visualization -->
-    <div class="card" id="chartCard" style="display: none;">
-        <div class="card-title">
-            <span>📈 กราฟแนวโน้ม NAV</span>
-            <span id="chartProjTag" class="badge">--</span>
-        </div>
-        <div class="chart-container">
-            <canvas id="navChart"></canvas>
-        </div>
+    <!-- Results Display Section -->
+    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="font-bold text-sm text-slate-200">📋 ผลลัพธ์ข้อมูลราคา</h2>
+        <span id="resultCount" class="text-xs bg-slate-700 px-2 py-0.5 rounded text-sky-300">0 รายการ</span>
+      </div>
+
+      <div id="resultsList" class="space-y-2 text-xs max-h-96 overflow-y-auto">
+        <p class="text-center text-slate-500 py-6">ยังไม่มีข้อมูล กดปุ่ม "ดึงข้อมูลราคา NAV"</p>
+      </div>
     </div>
 
-    <!-- Section 4: Data Results List -->
-    <div class="card">
-        <div class="card-title">
-            <span>📋 ผลลัพธ์ข้อมูลราคา</span>
-            <span id="resultCount" class="badge">0 รายการ</span>
+  </div>
+
+  <script>
+    // Set default dates (Today and 7 days ago)
+    window.onload = function() {
+      const today = new Date();
+      const prior = new Date();
+      prior.setDate(today.getDate() - 7);
+
+      document.getElementById('endDate').value = formatDate(today);
+      document.getElementById('startDate').value = formatDate(prior);
+
+      const savedKey = localStorage.getItem('sec_api_key');
+      if (savedKey) {
+        document.getElementById('apiKey').value = savedKey;
+      }
+    };
+
+    function formatDate(date) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function saveSettings() {
+      const key = document.getElementById('apiKey').value.trim();
+      localStorage.setItem('sec_api_key', key);
+      alert('บันทึก API Key เรียบร้อยแล้ว!');
+    }
+
+    async function fetchNAV() {
+      const apiKey = document.getElementById('apiKey').value.trim() || localStorage.getItem('sec_api_key');
+      const projId = document.getElementById('projId').value.trim();
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const statusMsg = document.getElementById('statusMsg');
+      const resultsList = document.getElementById('resultsList');
+      const resultCount = document.getElementById('resultCount');
+
+      if (!apiKey) {
+        alert('กรุณากรอก API Key ก่อนใช้งานครับ!');
+        return;
+      }
+
+      statusMsg.innerText = '⏳ กำลังดึงข้อมูลจาก ก.ล.ต...';
+      statusMsg.classList.remove('hidden');
+      resultsList.innerHTML = '<p class="text-center text-slate-400 py-4">กำลังโหลดข้อมูล...</p>';
+
+      // Construct API Endpoint v2
+      let apiUrl = `https://api.sec.or.th/v2/fund/daily-info/nav?nav_date_start=${startDate}&nav_date_end=${endDate}`;
+      if (projId) {
+        apiUrl += `&proj_id=${projId}`;
+      }
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Ocp-Apim-Subscription-Key': apiKey,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        displayData(data);
+        statusMsg.classList.add('hidden');
+
+      } catch (err) {
+        console.error(err);
+        statusMsg.innerText = '❌ เกิดข้อผิดพลาดในการดึงข้อมูล (ตรวจสอบ API Key หรือ CORS)';
+        resultsList.innerHTML = `
+          <div class="p-3 bg-red-950/50 border border-red-800 rounded text-red-300 text-xs">
+            <p class="font-bold mb-1">ไม่สามารถเชื่อมต่อได้:</p>
+            <ul class="list-disc list-inside space-y-1">
+              <li>โปรดเช็กว่า API Key ถูกต้อง</li>
+              <li>หากเปิดบนมือถือ อาจติด CORS บล็อก ให้ทดสอบผ่าน PC</li>
+            </ul>
+          </div>
+        `;
+      }
+    }
+
+    function displayData(data) {
+      const resultsList = document.getElementById('resultsList');
+      const resultCount = document.getElementById('resultCount');
+
+      const items = Array.isArray(data) ? data : (data.result || []);
+      resultCount.innerText = `${items.length} รายการ`;
+
+      if (items.length === 0) {
+        resultsList.innerHTML = '<p class="text-center text-slate-400 py-4">ไม่พบข้อมูลราคา NAV ในช่วงวันที่เลือก</p>';
+        return;
+      }
+
+      resultsList.innerHTML = items.map(item => `
+        <div class="p-2.5 bg-slate-900/80 border border-slate-700/60 rounded flex justify-between items-center">
+          <div>
+            <div class="font-bold text-sky-400">${item.proj_id || 'N/A'}</div>
+            <div class="text-[10px] text-slate-400">วันที่: ${item.nav_date ? item.nav_date.substring(0, 10) : '-'}</div>
+          </div>
+          <div class="text-right">
+            <div class="font-bold text-emerald-400 text-sm">${item.net_asset ? Number(item.net_asset).toLocaleString() : item.nav_per_unit || '-'}</div>
+            <div class="text-[10px] text-slate-400">NAV / หน่วย</div>
+          </div>
         </div>
-        <div id="navResultsList">
-            <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px 0;">
-                ยังไม่มีข้อมูล กดปุ่ม "ดึงข้อมูลราคา NAV"
-            </div>
-        </div>
-    </div>
-
-    <script>
-        let navChartInstance = null;
-        let fundNameMap = {}; // Storage for Proj ID -> Name Mapping
-
-        window.onload = function() {
-            // Set Default Dates to Today
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('startDate').value = today;
-            document.getElementById('endDate').value = today;
-
-            // Load Saved API Key
-            const savedKey = localStorage.getItem('sec_api_key');
-            if (savedKey) {
-                document.getElementById('apiKey').value = savedKey;
-            } else {
-                document.getElementById('settingsCard').open = true;
-            }
-
-            // Load Local Master Data Map
-            loadLocalMasterData();
-        };
-
-        function saveSettings() {
-            const key = document.getElementById('apiKey').value.trim();
-            if (!key) {
-                alert('กรุณากรอก API Key ก่อนทำการบันทึก');
-                return;
-            }
-            localStorage.setItem('sec_api_key', key);
-            alert('บันทึก API Key ลงในเครื่องเรียบร้อยแล้ว');
-            document.getElementById('settingsCard').open = false;
-            
-            // Try syncing Master Data after saving key
-            syncFundMasterData(false);
-        }
-
-        function loadLocalMasterData() {
-            const cachedMap = localStorage.getItem('sec_fund_name_map');
-            const badge = document.getElementById('masterStatusBadge');
-            
-            if (cachedMap) {
-                fundNameMap = JSON.parse(cachedMap);
-                const count = Object.keys(fundNameMap).length;
-                badge.innerText = `Master Data: ${count} กองทุน`;
-                badge.style.color = 'var(--accent-success)';
-            } else {
-                badge.innerText = 'ยังไม่มี Master Data';
-                badge.style.color = 'var(--accent-warning)';
-            }
-        }
-
-        async function syncFundMasterData(forceAlert = false) {
-            const apiKey = localStorage.getItem('sec_api_key') || document.getElementById('apiKey').value.trim();
-            if (!apiKey) {
-                if (forceAlert) alert('กรุณากรอกและบันทึก API Key ก่อนดึงรายชื่อกองทุน');
-                return;
-            }
-
-            const badge = document.getElementById('masterStatusBadge');
-            badge.innerText = 'กำลังโหลดรายชื่อ...';
-
-            try {
-                // Fetch Master Data for all projects/funds
-                const response = await fetch('https://api.sec.or.th/v2/fund/project', {
-                    method: 'GET',
-                    headers: { 'Ocp-Apim-Subscription-Key': apiKey }
-                });
-
-                if (response.status === 200) {
-                    const data = await response.json();
-                    const items = data.items || [];
-                    
-                    fundNameMap = {};
-                    items.forEach(item => {
-                        if (item.proj_id) {
-                            fundNameMap[item.proj_id] = item.proj_name_th || item.proj_name_en || item.proj_id;
-                        }
-                    });
-
-                    localStorage.setItem('sec_fund_name_map', JSON.stringify(fundNameMap));
-                    const count = Object.keys(fundNameMap).length;
-                    
-                    badge.innerText = `Master Data: ${count} กองทุน`;
-                    badge.style.color = 'var(--accent-success)';
-                    
-                    if (forceAlert) alert(`อัปเดตรายชื่อกองทุนสำเร็จทั้งหมด ${count} กองทุน`);
-                } else {
-                    badge.innerText = 'โหลด Master Data ล้มเหลว';
-                    badge.style.color = 'var(--accent-danger)';
-                    if (forceAlert) alert(`เกิดข้อผิดพลาด (${response.status}) ในการดึงรายชื่อกองทุน`);
-                }
-            } catch (err) {
-                console.error(err);
-                badge.innerText = 'เกิดข้อผิดพลาดการเชื่อมต่อ';
-                badge.style.color = 'var(--accent-danger)';
-            }
-        }
-
-        function getFundName(projId) {
-            if (fundNameMap[projId]) {
-                return fundNameMap[projId];
-            }
-            return 'ไม่ทราบชื่อกองทุน';
-        }
-
-        function setProjId(id) {
-            document.getElementById('projIdInput').value = id;
-        }
-
-        function clearAllData() {
-            if (confirm('คุณต้องการล้าง API Key และข้อมูลแคชกองทุนทั้งหมดใช่หรือไม่?')) {
-                localStorage.removeItem('sec_api_key');
-                localStorage.removeItem('sec_fund_name_map');
-                document.getElementById('apiKey').value = '';
-                fundNameMap = {};
-                loadLocalMasterData();
-                alert('ล้างข้อมูลเรียบร้อยแล้ว');
-            }
-        }
-
-        async function fetchNavData() {
-            const apiKey = localStorage.getItem('sec_api_key') || document.getElementById('apiKey').value.trim();
-            if (!apiKey) {
-                alert('กรุณากรอก API Key ในส่วนตั้งค่าก่อนใช้งาน');
-                document.getElementById('settingsCard').open = true;
-                return;
-            }
-
-            // Auto fetch Master Data if empty
-            if (Object.keys(fundNameMap).length === 0) {
-                await syncFundMasterData(false);
-            }
-
-            const projId = document.getElementById('projIdInput').value.trim();
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
-            const statusMsg = document.getElementById('statusMsg');
-
-            statusMsg.innerText = 'กำลังดึงข้อมูลราคา NAV...';
-            statusMsg.style.color = 'var(--accent-warning)';
-
-            const baseUrl = 'https://api.sec.or.th/v2/fund/daily-info/nav';
-            const params = new URLSearchParams({
-                'page_size': '20',
-                'start_nav_date': startDate,
-                'end_nav_date': endDate
-            });
-
-            if (projId) {
-                params.append('proj_id', projId);
-            }
-
-            try {
-                const response = await fetch(`${baseUrl}?${params.toString()}`, {
-                    method: 'GET',
-                    headers: {
-                        'Ocp-Apim-Subscription-Key': apiKey,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (response.status === 200) {
-                    const data = await response.json();
-                    const items = data.items || [];
-                    
-                    statusMsg.innerText = `สำเร็จ! ดึงข้อมูลได้ ${items.length} รายการ`;
-                    statusMsg.style.color = 'var(--accent-success)';
-                    
-                    renderResults(items);
-                    if (projId && items.length > 0) {
-                        renderChart(items, projId);
-                    } else {
-                        document.getElementById('chartCard').style.display = 'none';
-                    }
-                } else if (response.status === 204) {
-                    statusMsg.innerText = 'ไม่มีข้อมูล (204 No Content) - ลองเปลี่ยนช่วงวันที่หรือ Proj ID';
-                    statusMsg.style.color = 'var(--accent-warning)';
-                    renderResults([]);
-                } else {
-                    statusMsg.innerText = `เกิดข้อผิดพลาดในการดึงข้อมูล (${response.status})`;
-                    statusMsg.style.color = 'var(--accent-danger)';
-                }
-            } catch (err) {
-                statusMsg.innerText = 'ไม่สามารถเชื่อมต่อ API ได้ (ตรวจสอบอินเทอร์เน็ต/API Key)';
-                statusMsg.style.color = 'var(--accent-danger)';
-                console.error(err);
-            }
-        }
-
-        function renderResults(items) {
-            const listContainer = document.getElementById('navResultsList');
-            document.getElementById('resultCount').innerText = `${items.length} รายการ`;
-
-            if (items.length === 0) {
-                listContainer.innerHTML = `
-                    <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px 0;">
-                        ไม่พบข้อมูล NAV ตามเงื่อนไขที่ระบุ
-                    </div>`;
-                return;
-            }
-
-            let html = '';
-            items.forEach(item => {
-                const navVal = item.last_val ? parseFloat(item.last_val).toFixed(4) : 'N/A';
-                const netAsset = item.net_asset ? (parseFloat(item.net_asset) / 1000000).toFixed(2) + ' ล้านบาท' : 'N/A';
-                const displayName = getFundName(item.proj_id);
-
-                html += `
-                    <div class="fund-item">
-                        <div class="fund-info">
-                            <div class="proj-id">${item.proj_id || 'UNKNOWN'}</div>
-                            <div class="fund-name">${displayName}</div>
-                            <div class="date">วันที่ NAV: ${item.nav_date || '-'}</div>
-                        </div>
-                        <div class="fund-val">
-                            <div class="nav">${navVal}</div>
-                            <div class="change">AUM: ${netAsset}</div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            listContainer.innerHTML = html;
-        }
-
-        function renderChart(items, projId) {
-            const chartCard = document.getElementById('chartCard');
-            chartCard.style.display = 'block';
-            document.getElementById('chartProjTag').innerText = getFundName(projId);
-
-            const sortedItems = [...items].sort((a, b) => new Date(a.nav_date) - new Date(b.nav_date));
-            const labels = sortedItems.map(item => item.nav_date);
-            const dataPoints = sortedItems.map(item => parseFloat(item.last_val));
-
-            const ctx = document.getElementById('navChart').getContext('2d');
-
-            if (navChartInstance) {
-                navChartInstance.destroy();
-            }
-
-            navChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'NAV',
-                        data: dataPoints,
-                        borderColor: '#38bdf8',
-                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 3,
-                        pointBackgroundColor: '#38bdf8'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        x: {
-                            grid: { color: '#334155' },
-                            ticks: { color: '#94a3b8', font: { size: 10 } }
-                        },
-                        y: {
-                            grid: { color: '#334155' },
-                            ticks: { color: '#94a3b8', font: { size: 10 } }
-                        }
-                    }
-                }
-            });
-        }
-    </script>
+      `).join('');
+    }
+  </script>
 </body>
 </html>
