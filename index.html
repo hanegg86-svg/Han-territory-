@@ -278,7 +278,7 @@
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4 mb-4">
           <div>
             <h2 class="text-xl font-bold text-slate-900 mb-1">จัดสรรพอร์ตตามประเภทย่อย (Sub-Category Allocation)</h2>
-            <p class="text-sm text-slate-500">วิเคราะห์เป้าหมายและแนวโน้มรายตัวแบบละเอียดตามประเภท ทอง หุ้นต่างประเทศ ฯลฯ</p>
+            <p class="text-sm text-slate-500">วิเคราะห์เป้าหมายและแนวโน้มรายตัวแบบรายละเอียดตามประเภท ทอง หุ้นต่างประเทศ ฯลฯ</p>
           </div>
           <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
             <label class="text-xs font-bold text-slate-600 whitespace-nowrap"><i class="fa-solid fa-calendar-days mr-1"></i> เลือกเดือนวิเคราะห์:</label>
@@ -546,7 +546,7 @@
         </div>
         <label class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-md whitespace-nowrap">
           <i class="fa-solid fa-camera mr-1.5"></i> สแกนภาพสกรีนช็อต
-          <input type="file" id="nav-image-input" accept="image/*" onchange="processImageWithGemini(event)" class="hidden">
+          <input type="file" id="nav-image-input" accept="image/*" multiple onchange="processImageWithGemini(event)" class="hidden">
         </label>
       </div>
 
@@ -660,7 +660,7 @@
         <h3 class="text-lg font-bold text-slate-900 mb-1">จัดการข้อมูล (Data Management)</h3>
         <p class="text-sm text-slate-500 mb-4">สำรองข้อมูล นำเข้าเพื่อใช้งานต่อ หรือส่งออกเป็นไฟล์ตาราง</p>
 
-        <!-- NEW: Local Storage Capacity Indicator Bar (Max 5MB) -->
+        <!-- Local Storage Capacity Indicator Bar (Max 5MB) -->
         <div class="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
           <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs font-bold text-slate-700 gap-1">
             <span class="flex items-center space-x-1.5">
@@ -1281,10 +1281,10 @@
       setEntryStatus(renderUsingCarryForward ? `<i class="fa-solid fa-info-circle mr-1"></i> โหมดแก้ไข (ข้อมูลยังไม่ถูกบันทึก)` : `<i class="fa-solid fa-check mr-1"></i> ข้อมูลในระบบล่าสุด`);
     }
 
-    // Direct Gemini 3.1 Flash-Lite AI OCR Processing via API Key
+    // Direct Gemini 3.1 Flash-Lite AI OCR Processing via API Key (Supports Multiple Files)
     async function processImageWithGemini(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
 
       const apiKey = getStoredApiKey();
       if (!apiKey) {
@@ -1293,20 +1293,32 @@
         return;
       }
 
-      showToast('กำลังส่งสแกนภาพไปยัง Gemini 3.1 Flash-Lite AI...');
+      showToast(`กำลังสแกนรูปภาพจำนวน ${files.length} ภาพ ด้วย Gemini 3.1 Flash-Lite AI...`);
 
-      const reader = new FileReader();
-      reader.onload = async function (e) {
-        const base64Data = e.target.result.split(',')[1];
-        const mimeType = file.type || 'image/jpeg';
+      const readFileAsBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve({
+            base64Data: reader.result.split(',')[1],
+            mimeType: file.type || 'image/jpeg'
+          });
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      };
 
-        const promptText = `
-          Extract mutual fund names/symbols and their corresponding NAV (Net Asset Value) from this image.
-          Return ONLY a clean JSON array with no extra text or markdown syntax.
-          Format: [{"symbol": "K-SF-SSF", "nav": 10.4521}]
-        `;
+      try {
+        let matchedCount = 0;
 
-        try {
+        for (let file of files) {
+          const { base64Data, mimeType } = await readFileAsBase64(file);
+
+          const promptText = `
+            Extract mutual fund names/symbols and their corresponding NAV (Net Asset Value) from this image.
+            Return ONLY a clean JSON array with no extra text or markdown syntax.
+            Format: [{"symbol": "K-SF-SSF", "nav": 10.4521}]
+          `;
+
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1321,15 +1333,13 @@
           });
 
           const resData = await response.json();
-          if (resData.error) throw new Error(resData.error.message);
+          if (resData.error) continue;
 
           const rawText = resData.candidates[0].content.parts[0].text.trim();
           const jsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
           const items = JSON.parse(jsonStr);
 
           if (Array.isArray(items) && items.length > 0) {
-            let matchedCount = 0;
-
             items.forEach(item => {
               const scannedCode = (item.symbol || '').toUpperCase().trim();
               const navVal = parseFloat(item.nav);
@@ -1351,21 +1361,21 @@
                 }
               }
             });
-
-            if (matchedCount > 0) {
-              showToast(`อัปเดต NAV สำเร็จเรียบร้อย ${matchedCount} กองทุน!`);
-            } else {
-              alert('สแกนสำเร็จแต่ไม่พบรหัสกองทุนที่ตรงกัน กรุณาเช็คว่าระบุ Symbol ในแท็บตั้งค่าตรงกับในสกรีนช็อต');
-            }
-          } else {
-            alert('ไม่พบข้อมูลรหัสกองทุนหรือค่า NAV ในภาพนี้');
           }
-        } catch (err) {
-          console.error(err);
-          alert('เกิดข้อผิดพลาดในการประมวลผล Gemini AI: ' + err.message);
         }
-      };
-      reader.readAsDataURL(file);
+
+        if (matchedCount > 0) {
+          showToast(`อัปเดต NAV สำเร็จรวม ${matchedCount} รายการ!`);
+        } else {
+          alert('สแกนสำเร็จแต่ไม่พบรหัสกองทุนที่ตรงกัน กรุณาตรวจสอบว่าได้กำหนด Symbol ในแท็บตั้งค่าตรงกับสกรีนช็อต');
+        }
+
+      } catch (err) {
+        console.error(err);
+        alert('เกิดข้อผิดพลาดในการประมวลผล Gemini AI: ' + err.message);
+      } finally {
+        event.target.value = ''; // Reset input
+      }
     }
 
     function updateEntryTotals() {
