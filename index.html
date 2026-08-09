@@ -1719,25 +1719,6 @@
       return true;
     }
 
-    function saveMonthlyData(ev) {
-      const mInput = document.getElementById('entry-month');
-      const month = activeEntryMonth || (mInput ? mInput.value : getCurrentMonth());
-      const ok = saveEntryMonth(month, { showToastFlag: false });
-      if (!ok) return;
-      entryDirty = false;
-      showToast('บันทึกข้อมูลแล้ว');
-
-      const btn = ev?.currentTarget;
-      if (!btn) return;
-      const originalText = btn.innerHTML;
-      btn.innerHTML = `<i class="fa-solid fa-check mr-2"></i> บันทึกสำเร็จ!`;
-      btn.classList.replace('bg-blue-600', 'bg-emerald-500');
-      setTimeout(() => {
-        btn.innerHTML = originalText;
-        btn.classList.replace('bg-emerald-500', 'bg-blue-600');
-      }, 2000);
-    }
-
     // ================= COMPARE DASHBOARD =================
     function getAvailableYears() {
       const years = new Set(Object.keys(db.records).map(m => m.split('-')[0]));
@@ -2021,7 +2002,7 @@
       }
     }
 
-    // 🌟 ฟังก์ชันคำนวณ Trailing Returns ฉบับแก้ไขถูกต้องตามหลักทางการเงิน (v4.2.0)
+    // 🌟 ฟังก์ชันคำนวณ Trailing Returns (ย้อนหลังไม่เกิน 1 ปี หากยังไม่เจอจะแสดง N/A)
     function calculateTrailingReturn(filterId, endMonth, monthsBack) {
       const allMonths = Object.keys(db.records).sort();
       const endIdx = allMonths.indexOf(endMonth);
@@ -2032,29 +2013,33 @@
       const targetDate = new Date(endYear, endM - 1 - monthsBack, 1);
       const targetMonthStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
 
-      // 2. ถอยหาเดือนที่มีข้อมูลใกล้เคียงที่สุดก่อนหน้าหรือเท่ากับ targetMonthStr
-      const validPreviousMonths = allMonths.filter(m => m <= targetMonthStr);
-      if (validPreviousMonths.length === 0) {
-        return null; // ไม่มีข้อมูลย้อนหลังถึงช่วงเวลานี้ ให้ขึ้น N/A
-      }
-      const startMonth = validPreviousMonths[validPreviousMonths.length - 1];
+      // 2. คำนวณขีดจำกัดย้อนหลังได้ไม่เกิน 1 ปี (Limit Date = Target Date - 12 เดือน)
+      const limitDate = new Date(targetDate.getFullYear() - 1, targetDate.getMonth(), 1);
+      const limitMonthStr = `${limitDate.getFullYear()}-${String(limitDate.getMonth() + 1).padStart(2, '0')}`;
 
-      // 3. ดึงมูลค่าตลาด ณ เดือนเริ่มต้น และ เดือนปัจจุบัน
+      // 3. ค้นหาเดือนในอดีตที่มีข้อมูลจริง โดยต้อง <= targetMonthStr และ >= limitMonthStr (ย้อนหลังไม่เกิน 1 ปี)
+      const validPreviousMonths = allMonths.filter(m => m <= targetMonthStr && m >= limitMonthStr);
+      if (validPreviousMonths.length === 0) {
+        return null; // ย้อนหลังเกิน 1 ปีแล้วยังไม่พบข้อมูล ส่งกลับ null เพื่อให้แสดง N/A
+      }
+      const startMonth = validPreviousMonths[validPreviousMonths.length - 1]; // เลือกเดือนใกล้เคียงที่สุด
+
+      // 4. ดึงมูลค่าตลาด ณ เดือนเริ่มต้น และ เดือนปัจจุบัน
       const startVal = getMarketValueByFilter(filterId, startMonth);
       const endVal = getMarketValueByFilter(filterId, endMonth);
 
-      if (startVal <= 0) return null; // มูลค่าเริ่มต้นเป็น 0 ไม่สามารถคิด % ได้
+      if (startVal <= 0) return null; // มูลค่าเริ่มต้นเป็น 0 คิด % ไม่ได้
 
-      // 4. คำนวณเงินลงทุนที่ซื้อ/ขายเพิ่ม (Net Capital Flow) ระหว่างทาง
+      // 5. คำนวณเงินลงทุนที่ซื้อ/ขายเพิ่ม (Net Capital Flow) ในระหว่างช่วงเวลา
       const startCost = getCostBasisByFilter(filterId, startMonth);
       const endCost = getCostBasisByFilter(filterId, endMonth);
       const netFlow = endCost - startCost;
 
-      // 5. คำนวณผลตอบแทนที่เกิดจากพอร์ตจริง (หักเงินเติมออก)
+      // 6. คำนวณผลตอบแทนจากพอร์ตจริง (หักเงินเติมออก)
       const adjustedEndVal = endVal - netFlow;
       const hpr = ((adjustedEndVal / startVal) - 1) * 100;
 
-      // 6. กรณี 3 ปีขึ้นไป (monthsBack >= 36) ให้แปลงเป็นอัตราต่อปี (Annualized / CAGR)
+      // 7. กรณี 3 ปีขึ้นไป (monthsBack >= 36) ให้แปลงเป็นอัตราต่อปี (Annualized / CAGR)
       if (monthsBack >= 36) {
         const years = monthsBack / 12;
         if (adjustedEndVal > 0) {
