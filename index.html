@@ -1124,12 +1124,12 @@
       }
     }
 
+    // 🎯 แก้ไขจุดที่ 1: ปรับปรุงการอัปเดตไม่ให้สั่ง Re-render ซ้ำขณะพิมพ์ ป้องกัน Cursor หลุดโฟกัส
     function updateHoldingItem(fundId, index, field, value) {
       const fund = db.funds.find(f => f.id === fundId);
       if (fund && fund.holdings && fund.holdings[index]) {
         const isNumeric = ['shares', 'avgCost', 'currentPrice'].includes(field);
         
-        // หากเปลี่ยนเป็นประเภท "เงินสด" ให้ล็อกค่าต้นทุน/ราคาปัจจุบันเป็น 1
         if (field === 'type' && value === 'เงินสด') {
           fund.holdings[index].type = 'เงินสด';
           fund.holdings[index].avgCost = 1;
@@ -1140,11 +1140,15 @@
 
         recalculateFundTotalFromHoldings(fund);
         saveDB();
-        renderEntryForm();
+
+        // หากเป็นการเปลี่ยนประเภท ให้ Re-render เพื่อปรับสไตล์และสถานะ readonly
+        if (field === 'type') {
+          renderEntryForm();
+        }
       }
     }
 
-    // 🎯 แก้ไขฟังก์ชันคำนวณมูลค่ารวมให้อ่านเงินสดแม่นยำ 100%
+    // 🎯 แก้ไขจุดที่ 2: รวมยอดเงินสดและอัปเดตลง db.records ของเดือนทันที ยอดรวมใหญ่จึงบวกถูกต้องแน่นอน
     function recalculateFundTotalFromHoldings(fund) {
       let currentTotal = 0;
 
@@ -1154,11 +1158,9 @@
         const isCash = item.type === 'เงินสด' || (item.ticker && item.ticker.toUpperCase().includes('CASH')) || (item.ticker && item.ticker.includes('เงินสด'));
 
         if (isCash) {
-          // 💵 สำหรับเงินสด: นำค่าจากช่อง shares (ถ้ามี) หรือ currentPrice มาเป็นตัวเลขเงินสดตรงๆ
           const cashAmount = shares > 0 ? shares : currentPrice;
           currentTotal += cashAmount;
         } else {
-          // 📈 สำหรับหุ้น: จำนวนหุ้น x ราคาปัจจุบัน
           currentTotal += (shares * currentPrice);
         }
       });
@@ -1168,7 +1170,13 @@
         totalEl.value = formatNumber(currentTotal);
       }
 
+      // อัปเดตมูลค่ารวมลง Record ของเดือนปัจจุบันทันที
+      const month = activeEntryMonth || getCurrentMonth();
+      if (!db.records[month]) db.records[month] = {};
+      db.records[month][fund.id] = currentTotal;
+
       updateSubCategoriesFromHoldings(fund, currentTotal);
+      updateEntryTotals();
       scheduleAutoSave(fund.id, currentTotal);
     }
 
@@ -1372,7 +1380,7 @@
                   return `
                     <div class="grid grid-cols-12 gap-1 items-center min-w-[500px] text-xs py-1 border-b border-slate-100">
                       <input type="text" value="${item.ticker}" placeholder="เช่น PTT หรือ เงินสด" 
-                             onchange="updateHoldingItem('${f.id}', ${idx}, 'ticker', this.value)" 
+                             oninput="updateHoldingItem('${f.id}', ${idx}, 'ticker', this.value)" 
                              class="col-span-2 p-1 border rounded font-mono uppercase text-xs">
                       
                       <select onchange="updateHoldingItem('${f.id}', ${idx}, 'type', this.value)" 
@@ -1518,7 +1526,6 @@
 
               if (scannedCode) {
                 db.funds.forEach(fund => {
-                  // 1. แมตช์ NAV กองทุนหลัก
                   const fSymbol = (fund.symbol || '').toUpperCase().trim();
                   const fName = (fund.name || '').toUpperCase().trim();
                   if ((fSymbol === scannedCode || fName === scannedCode) && !isNaN(scannedPrice) && !isCashItem) {
@@ -1530,20 +1537,17 @@
                     }
                   }
 
-                  // 2. แมตช์ หุ้นรายตัว หรือ เงินสด ในพอร์ต
                   if (fund.holdings && fund.holdings.length > 0) {
                     fund.holdings.forEach(holding => {
                       const holdingTicker = (holding.ticker || '').toUpperCase().trim();
                       const holdingType = holding.type;
 
                       if (isCashItem && (holdingType === 'เงินสด' || holdingTicker.includes('เงินสด') || holdingTicker.includes('CASH'))) {
-                        // 💵 กรณีเงินสด: เอาตัวเลขเงินสดใส่ในช่อง shares
                         if (!isNaN(scannedShares)) holding.shares = scannedShares;
                         holding.avgCost = 1;
                         holding.currentPrice = 1;
                         matchedCount++;
                       } else if (holdingTicker === scannedCode && !isCashItem) {
-                        // 📈 กรณีหุ้นรายตัว: อัปเดตราคาและจำนวนหุ้น
                         if (!isNaN(scannedPrice)) holding.currentPrice = scannedPrice;
                         if (!isNaN(scannedShares) && scannedShares > 0) holding.shares = scannedShares;
                         matchedCount++;
@@ -2699,7 +2703,7 @@
 
     // ================= BACKUP / RESTORE / EXPORT =================
     function backupToJson() {
-      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.8.3', exportedAt: new Date().toISOString(), data: db };
+      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.8.4', exportedAt: new Date().toISOString(), data: db };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
