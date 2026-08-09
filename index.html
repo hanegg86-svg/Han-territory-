@@ -1124,7 +1124,6 @@
       }
     }
 
-    // 🎯 แก้ไขจุดที่ 1: ปรับปรุงการอัปเดตไม่ให้สั่ง Re-render ซ้ำขณะพิมพ์ ป้องกัน Cursor หลุดโฟกัส
     function updateHoldingItem(fundId, index, field, value) {
       const fund = db.funds.find(f => f.id === fundId);
       if (fund && fund.holdings && fund.holdings[index]) {
@@ -1141,21 +1140,24 @@
         recalculateFundTotalFromHoldings(fund);
         saveDB();
 
-        // หากเป็นการเปลี่ยนประเภท ให้ Re-render เพื่อปรับสไตล์และสถานะ readonly
         if (field === 'type') {
           renderEntryForm();
         }
       }
     }
 
-    // 🎯 แก้ไขจุดที่ 2: รวมยอดเงินสดและอัปเดตลง db.records ของเดือนทันที ยอดรวมใหญ่จึงบวกถูกต้องแน่นอน
+    // 🎯 ปรับปรุงการคำนวณ: เช็กจากประเภท (item.type === 'เงินสด') เป็นหลัก 100%
     function recalculateFundTotalFromHoldings(fund) {
       let currentTotal = 0;
 
       (fund.holdings || []).forEach(item => {
         const shares = parseFloat(item.shares) || 0;
         const currentPrice = parseFloat(item.currentPrice) || 0;
-        const isCash = item.type === 'เงินสด' || (item.ticker && item.ticker.toUpperCase().includes('CASH')) || (item.ticker && item.ticker.includes('เงินสด'));
+        
+        // เช็กประเภทเงินสดจาก Dropdown เป็นหลัก
+        const isCash = item.type === 'เงินสด' || 
+                       (item.ticker && item.ticker.toUpperCase().includes('CASH')) || 
+                       (item.ticker && item.ticker.includes('เงินสด'));
 
         if (isCash) {
           const cashAmount = shares > 0 ? shares : currentPrice;
@@ -1170,7 +1172,6 @@
         totalEl.value = formatNumber(currentTotal);
       }
 
-      // อัปเดตมูลค่ารวมลง Record ของเดือนปัจจุบันทันที
       const month = activeEntryMonth || getCurrentMonth();
       if (!db.records[month]) db.records[month] = {};
       db.records[month][fund.id] = currentTotal;
@@ -1384,7 +1385,7 @@
                              class="col-span-2 p-1 border rounded font-mono uppercase text-xs">
                       
                       <select onchange="updateHoldingItem('${f.id}', ${idx}, 'type', this.value)" 
-                              class="col-span-2 p-1 border rounded text-[11px] bg-white">
+                              class="col-span-2 p-1 border rounded text-[11px] bg-white font-bold text-slate-800">
                         <option value="หุ้นไทย" ${item.type === 'หุ้นไทย' ? 'selected' : ''}>หุ้นไทย</option>
                         <option value="หุ้นต่างประเทศ" ${item.type === 'หุ้นต่างประเทศ' ? 'selected' : ''}>หุ้นต่างประเทศ</option>
                         <option value="เงินสด" ${isCash ? 'selected' : ''}>เงินสด</option>
@@ -1450,7 +1451,7 @@
       setEntryStatus(renderUsingCarryForward ? `<i class="fa-solid fa-info-circle mr-1"></i> โหมดแก้ไข (ข้อมูลยังไม่ถูกบันทึก)` : `<i class="fa-solid fa-check mr-1"></i> ข้อมูลในระบบล่าสุด`);
     }
 
-    // Direct Gemini 3.1 Flash-Lite AI OCR Processing via API Key (Supports NAV, Stock Price, Shares & Cash)
+    // Direct Gemini 3.1 Flash-Lite AI OCR Processing via API Key
     async function processImageWithGemini(event) {
       const files = event.target.files;
       if (!files || files.length === 0) return;
@@ -1486,14 +1487,14 @@
             Extract mutual fund symbols/names with NAV, stock tickers with market prices and share quantities, AND cash balances from this portfolio image.
             
             RULES FOR CASH / MONEY / UNINVESTED CASH:
-            - If you see "เงินสด", "Cash", or "Uninvested Cash", set "symbol": "เงินสด" or "CASH", "isCash": true, and put the cash amount into "shares" field (and "price": 1).
+            - If you see "เงินสด", "Cash", or "Uninvested Cash", set "symbol": "CASH", "isCash": true, and put the cash amount into "shares" field (and "price": 1).
 
             Return ONLY a clean JSON array with no extra text or markdown.
             Format example: 
             [
               {"symbol": "K-SF-SSF", "price": 10.4521},
               {"symbol": "NINTENDO19", "price": 16.90, "shares": 11700},
-              {"symbol": "เงินสด", "isCash": true, "shares": 43383.31, "price": 1}
+              {"symbol": "CASH", "isCash": true, "shares": 43383.31, "price": 1}
             ]
           `;
 
@@ -1544,6 +1545,7 @@
 
                       if (isCashItem && (holdingType === 'เงินสด' || holdingTicker.includes('เงินสด') || holdingTicker.includes('CASH'))) {
                         if (!isNaN(scannedShares)) holding.shares = scannedShares;
+                        holding.type = 'เงินสด';
                         holding.avgCost = 1;
                         holding.currentPrice = 1;
                         matchedCount++;
@@ -2703,7 +2705,7 @@
 
     // ================= BACKUP / RESTORE / EXPORT =================
     function backupToJson() {
-      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.8.4', exportedAt: new Date().toISOString(), data: db };
+      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.8.5', exportedAt: new Date().toISOString(), data: db };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
