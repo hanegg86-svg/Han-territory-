@@ -243,11 +243,11 @@
 
         <div id="chart-latest-summary" class="grid grid-cols-1 md:grid-cols-4 gap-4"></div>
 
-        <!-- 🌟 ส่วนที่เพิ่มใหม่: การ์ดแสดงผลตอบแทนย้อนหลัง (Trailing Returns) -->
+        <!-- การ์ดแสดงผลตอบแทนย้อนหลัง (Trailing Returns) -->
         <div id="chart-trailing-returns-panel" class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
           <div class="flex items-center space-x-2 border-b border-slate-200 pb-2">
             <i class="fa-solid fa-clock-rotate-left text-blue-600 text-sm"></i>
-            <h3 class="font-bold text-slate-900 text-xs uppercase tracking-wide">ผลตอบแทนย้อนหลัง (Trailing Returns)</h3>
+            <h3 class="font-bold text-slate-900 text-xs uppercase tracking-wide">ผลตอบแทนย้อนหลัง (TRAILING RETURNS)</h3>
           </div>
           <div id="chart-trailing-returns-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
         </div>
@@ -2021,30 +2021,31 @@
       }
     }
 
-    // 🌟 ฟังก์ชันคำนวณผลตอบแทนย้อนหลัง (Trailing Returns)
+    // 🌟 ฟังก์ชันคำนวณ Trailing Returns ใหม่: ถอยหาเดือนที่ใกล้ที่สุดก่อนหน้า
     function calculateTrailingReturn(filterId, endMonth, monthsBack) {
       const allMonths = Object.keys(db.records).sort();
       const endIdx = allMonths.indexOf(endMonth);
       if (endIdx === -1) return null;
 
-      const startIdx = endIdx - monthsBack;
-      if (startIdx < 0) return null; // ข้อมูลไม่ย้อนหลังพอช่วงเวลาที่กำหนด
+      const [endYear, endM] = endMonth.split('-').map(Number);
+      const targetDate = new Date(endYear, endM - 1 - monthsBack, 1);
+      const targetMonthStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
 
-      const startMonth = allMonths[startIdx];
-      
-      const startVal = getMarketValueByFilter(filterId, startMonth);
+      // ดึงรายชื่อเดือนทั้งหมดที่เกิดขึ้นก่อนหรือเท่ากับเดือนเป้าหมาย
+      const validPreviousMonths = allMonths.filter(m => m <= targetMonthStr);
+
+      if (validPreviousMonths.length === 0) {
+        return null; // ไม่มีข้อมูลก่อนหน้านั้นเลย แสดง N/A
+      }
+
       const endVal = getMarketValueByFilter(filterId, endMonth);
-
-      const startCost = getCostBasisByFilter(filterId, startMonth);
       const endCost = getCostBasisByFilter(filterId, endMonth);
 
-      const netProfitEnd = endVal - endCost;
-      
       if (endCost <= 0) return 0;
-      
+
+      const netProfitEnd = endVal - endCost;
       const absoluteReturn = (netProfitEnd / endCost) * 100;
 
-      // ปรับคำนวณเป็น CAGR (ต่อปี) สำหรับช่วง 3 ปีขึ้นไป
       if (monthsBack >= 36) {
         const years = monthsBack / 12;
         if (endVal > 0 && endCost > 0) {
@@ -2109,7 +2110,6 @@
         `;
       }
 
-      // 🌟 คำนวณและแสดงผลการ์ด Trailing Returns (6 เดือน / 1 ปี / 3 ปี / 5 ปี)
       if(trailingGrid) {
         const periods = [
           { label: '6 เดือนย้อนหลัง', months: 6, isAnnualized: false },
@@ -2814,7 +2814,7 @@
 
     // ================= BACKUP / RESTORE / EXPORT =================
     function backupToJson() {
-      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v4.0.0', exportedAt: new Date().toISOString(), data: db };
+      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v4.1.0', exportedAt: new Date().toISOString(), data: db };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
