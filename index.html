@@ -540,8 +540,8 @@
         <div class="flex items-center space-x-3">
           <div class="p-2.5 bg-blue-600 text-white rounded-lg shadow-md"><i class="fa-solid fa-wand-magic-sparkles text-lg"></i></div>
           <div>
-            <h4 class="text-sm font-bold text-slate-800">สแกนอ่าน NAV / ราคาหุ้น / จำนวนหุ้น จากสกรีนช็อตด้วย Gemini 3.1 Flash-Lite</h4>
-            <p class="text-xs text-slate-500">ระบบจะนำรหัสกองทุน/ชื่อหุ้นจากภาพมาแมตช์แล้วเติมราคาและจำนวนหุ้นให้อัตโนมัติ</p>
+            <h4 class="text-sm font-bold text-slate-800">สแกนอ่าน NAV / ราคาหุ้น / ยอดเงินสด จากสกรีนช็อตด้วย Gemini 3.1 Flash-Lite</h4>
+            <p class="text-xs text-slate-500">ระบบจะนำรหัสกองทุน/ชื่อหุ้นจากภาพมาแมตช์แล้วเติมราคา จำนวนหุ้น หรือยอดเงินสดให้อัตโนมัติ</p>
           </div>
         </div>
         <label class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-md whitespace-nowrap">
@@ -1086,7 +1086,7 @@
     }
 
     function deleteSubCategory(fundId, subId) {
-      const fund = db.funds.find(f => f.id === subId);
+      const fund = db.funds.find(f => f.id === fundId);
       if (fund) {
         fund.subCategories = fund.subCategories.filter(s => s.id !== subId);
         saveDB();
@@ -1128,9 +1128,19 @@
       const fund = db.funds.find(f => f.id === fundId);
       if (fund && fund.holdings && fund.holdings[index]) {
         const isNumeric = ['shares', 'avgCost', 'currentPrice'].includes(field);
-        fund.holdings[index][field] = isNumeric ? (parseFloat(value) || 0) : value;
+        
+        // หากเปลี่ยนเป็นประเภท "เงินสด" ให้ล็อกค่าต้นทุน/ราคาปัจจุบันเป็น 1
+        if (field === 'type' && value === 'เงินสด') {
+          fund.holdings[index].type = 'เงินสด';
+          fund.holdings[index].avgCost = 1;
+          fund.holdings[index].currentPrice = 1;
+        } else {
+          fund.holdings[index][field] = isNumeric ? (parseFloat(value) || 0) : value;
+        }
+
         recalculateFundTotalFromHoldings(fund);
         saveDB();
+        renderEntryForm();
       }
     }
 
@@ -1143,9 +1153,11 @@
         const avgCost = parseFloat(item.avgCost) || 0;
         const currentPrice = parseFloat(item.currentPrice) || 0;
 
-        if (item.type === 'เงินสด' || item.ticker.toUpperCase() === 'CASH') {
-          // 💡 เงินสดในพอร์ตหุ้น: คิดมูลค่าปัจจุบัน = ต้นทุน (1:1)
-          const cashVal = shares > 0 ? shares : currentPrice;
+        const isCash = item.type === 'เงินสด' || (item.ticker && item.ticker.toUpperCase() === 'CASH');
+
+        if (isCash) {
+          // 💡 เงินสดในพอร์ตหุ้น: คิดมูลค่าปัจจุบันตามจำนวนเงินสดในช่อง shares
+          const cashVal = shares;
           currentTotal += cashVal;
           totalCost += cashVal; 
         } else {
@@ -1160,31 +1172,8 @@
         totalEl.value = formatNumber(currentTotal);
       }
 
-      syncHoldingCostToTransaction(fund.id, totalCost);
       updateSubCategoriesFromHoldings(fund, currentTotal);
       scheduleAutoSave(fund.id, currentTotal);
-    }
-
-    function syncHoldingCostToTransaction(fundId, totalCost) {
-      const currentMonth = activeEntryMonth || getCurrentMonth();
-      const txDate = `${currentMonth}-01`;
-
-      let tx = db.transactions.find(t => t.fundId === fundId && t.date.startsWith(currentMonth));
-
-      if (totalCost > 0) {
-        if (tx) {
-          tx.amount = totalCost;
-          tx.type = 'BUY';
-        } else {
-          db.transactions.push({
-            id: 'tx_auto_' + fundId + '_' + currentMonth,
-            date: txDate,
-            fundId: fundId,
-            type: 'BUY',
-            amount: totalCost
-          });
-        }
-      }
     }
 
     function updateSubCategoriesFromHoldings(fund, totalVal) {
@@ -1194,7 +1183,9 @@
       fund.holdings.forEach(item => {
         const shares = parseFloat(item.shares) || 0;
         const price = parseFloat(item.currentPrice) || 0;
-        const itemVal = (item.type === 'เงินสด' || item.ticker.toUpperCase() === 'CASH') ? (shares > 0 ? shares : price) : (shares * price);
+        const isCash = item.type === 'เงินสด' || (item.ticker && item.ticker.toUpperCase() === 'CASH');
+        
+        const itemVal = isCash ? shares : (shares * price);
         typeSums[item.type] = (typeSums[item.type] || 0) + itemVal;
       });
 
@@ -1359,31 +1350,31 @@
               ` : ''}
 
               ${isMedCategory ? `
-              <!-- ตารางบันทึกหุ้นรายตัว + ต้นทุน -->
+              <!-- ตารางบันทึกหุ้นรายตัว + เงินสด -->
               <div id="holdings-list-${f.id}" class="space-y-2 bg-white p-3 rounded-lg border border-slate-200 overflow-x-auto">
                 <div class="grid grid-cols-12 gap-1 text-[10px] font-bold text-slate-500 border-b pb-1 min-w-[500px]">
                   <span class="col-span-2">ชื่อหุ้น/เงินสด</span>
                   <span class="col-span-2">ประเภท</span>
-                  <span class="col-span-2 text-right">จำนวนหุ้น</span>
+                  <span class="col-span-2 text-right">จำนวนหุ้น/เงินสด</span>
                   <span class="col-span-2 text-right">ต้นทุน/หุ้น</span>
                   <span class="col-span-2 text-right">ราคาปัจจุบัน</span>
                   <span class="col-span-2 text-right">กำไร/ขาดทุน</span>
                 </div>
 
                 ${(f.holdings || []).map((item, idx) => {
+                  const isCash = item.type === 'เงินสด' || (item.ticker && item.ticker.toUpperCase() === 'CASH');
                   const shares = parseFloat(item.shares) || 0;
-                  const avgCost = parseFloat(item.avgCost) || 0;
-                  const currentPrice = parseFloat(item.currentPrice) || 0;
+                  const avgCost = isCash ? 1 : (parseFloat(item.avgCost) || 0);
+                  const currentPrice = isCash ? 1 : (parseFloat(item.currentPrice) || 0);
                   
-                  const isCash = item.type === 'เงินสด' || item.ticker.toUpperCase() === 'CASH';
-                  const totalCost = isCash ? (shares > 0 ? shares : currentPrice) : (shares * avgCost);
-                  const currentVal = isCash ? (shares > 0 ? shares : currentPrice) : (shares * currentPrice);
+                  const totalCost = isCash ? shares : (shares * avgCost);
+                  const currentVal = isCash ? shares : (shares * currentPrice);
                   const profit = currentVal - totalCost;
                   const isPos = profit >= 0;
 
                   return `
                     <div class="grid grid-cols-12 gap-1 items-center min-w-[500px] text-xs py-1 border-b border-slate-100">
-                      <input type="text" value="${item.ticker}" placeholder="เช่น PTT" 
+                      <input type="text" value="${item.ticker}" placeholder="เช่น PTT หรือ เงินสด" 
                              onchange="updateHoldingItem('${f.id}', ${idx}, 'ticker', this.value)" 
                              class="col-span-2 p-1 border rounded font-mono uppercase text-xs">
                       
@@ -1391,24 +1382,26 @@
                               class="col-span-2 p-1 border rounded text-[11px] bg-white">
                         <option value="หุ้นไทย" ${item.type === 'หุ้นไทย' ? 'selected' : ''}>หุ้นไทย</option>
                         <option value="หุ้นต่างประเทศ" ${item.type === 'หุ้นต่างประเทศ' ? 'selected' : ''}>หุ้นต่างประเทศ</option>
-                        <option value="เงินสด" ${item.type === 'เงินสด' ? 'selected' : ''}>เงินสด</option>
+                        <option value="เงินสด" ${isCash ? 'selected' : ''}>เงินสด</option>
                       </select>
 
-                      <input type="number" value="${item.shares || ''}" placeholder="0" 
+                      <input type="number" value="${shares || ''}" placeholder="0.00" 
                              oninput="updateHoldingItem('${f.id}', ${idx}, 'shares', this.value)" 
-                             class="col-span-2 p-1 border rounded font-mono text-right text-xs">
+                             class="col-span-2 p-1 border rounded font-mono text-right text-xs font-bold text-blue-900 bg-blue-50/20">
 
-                      <input type="number" step="0.01" value="${item.avgCost || ''}" placeholder="0.00" 
+                      <input type="number" step="0.01" value="${avgCost}" placeholder="0.00" 
+                             ${isCash ? 'readonly' : ''}
                              oninput="updateHoldingItem('${f.id}', ${idx}, 'avgCost', this.value)" 
-                             class="col-span-2 p-1 border border-amber-200 bg-amber-50/30 rounded font-mono text-right text-xs">
+                             class="col-span-2 p-1 border border-amber-200 ${isCash ? 'bg-slate-100' : 'bg-amber-50/30'} rounded font-mono text-right text-xs">
 
-                      <input type="number" step="0.01" value="${item.currentPrice || ''}" placeholder="0.00" 
+                      <input type="number" step="0.01" value="${currentPrice}" placeholder="0.00" 
+                             ${isCash ? 'readonly' : ''}
                              oninput="updateHoldingItem('${f.id}', ${idx}, 'currentPrice', this.value)" 
-                             class="col-span-2 p-1 border border-blue-200 bg-blue-50/30 rounded font-mono text-right text-xs">
+                             class="col-span-2 p-1 border border-blue-200 ${isCash ? 'bg-slate-100' : 'bg-blue-50/30'} rounded font-mono text-right text-xs">
 
                       <div class="col-span-2 flex items-center justify-between pl-1">
                         <span class="font-mono text-[11px] font-bold ${isPos ? 'text-emerald-600' : 'text-rose-600'}">
-                          ${isPos ? '+' : ''}${formatNumber(profit)}
+                          ${isCash ? '฿' + formatNumber(currentVal) : ((isPos ? '+' : '') + formatNumber(profit))}
                         </span>
                         <button onclick="removeHoldingItem('${f.id}', ${idx})" class="text-rose-400 hover:text-rose-600 p-0.5">
                           <i class="fa-solid fa-xmark"></i>
@@ -1452,7 +1445,7 @@
       setEntryStatus(renderUsingCarryForward ? `<i class="fa-solid fa-info-circle mr-1"></i> โหมดแก้ไข (ข้อมูลยังไม่ถูกบันทึก)` : `<i class="fa-solid fa-check mr-1"></i> ข้อมูลในระบบล่าสุด`);
     }
 
-    // Direct Gemini 3.1 Flash-Lite AI OCR Processing via API Key (Supports NAV, Stock Price & Shares)
+    // Direct Gemini 3.1 Flash-Lite AI OCR Processing via API Key (Supports NAV, Stock Price, Shares & Cash)
     async function processImageWithGemini(event) {
       const files = event.target.files;
       if (!files || files.length === 0) return;
@@ -1485,13 +1478,17 @@
           const { base64Data, mimeType } = await readFileAsBase64(file);
 
           const promptText = `
-            Extract mutual fund symbols/names with their NAV, OR stock tickers with their current market prices and share quantities from this image.
-            Return ONLY a clean JSON array with no extra text or markdown syntax.
+            Extract mutual fund symbols/names with NAV, stock tickers with market prices and share quantities, AND cash balances from this portfolio image.
+            
+            RULES FOR CASH / MONEY / UNINVESTED CASH:
+            - If you see "เงินสด", "Cash", or "Uninvested Cash", set "symbol": "เงินสด" or "CASH", "isCash": true, and put the cash amount into "shares" field (and "price": 1).
+
+            Return ONLY a clean JSON array with no extra text or markdown.
             Format example: 
             [
               {"symbol": "K-SF-SSF", "price": 10.4521},
-              {"symbol": "PTT", "price": 34.00, "shares": 500},
-              {"symbol": "NVDA", "price": 128.50, "shares": 10}
+              {"symbol": "NINTENDO19", "price": 16.90, "shares": 11700},
+              {"symbol": "เงินสด", "isCash": true, "shares": 43383.31, "price": 1}
             ]
           `;
 
@@ -1520,13 +1517,14 @@
               const scannedCode = (item.symbol || '').toUpperCase().trim();
               const scannedPrice = parseFloat(item.price || item.nav);
               const scannedShares = parseFloat(item.shares);
+              const isCashItem = item.isCash || scannedCode === 'เงินสด' || scannedCode === 'CASH';
 
               if (scannedCode) {
                 db.funds.forEach(fund => {
                   // 1. แมตช์ NAV กองทุนหลัก
                   const fSymbol = (fund.symbol || '').toUpperCase().trim();
                   const fName = (fund.name || '').toUpperCase().trim();
-                  if ((fSymbol === scannedCode || fName === scannedCode) && !isNaN(scannedPrice)) {
+                  if ((fSymbol === scannedCode || fName === scannedCode) && !isNaN(scannedPrice) && !isCashItem) {
                     const navEl = document.getElementById(`entry-nav-${fund.id}`);
                     if (navEl) {
                       navEl.value = scannedPrice;
@@ -1535,10 +1533,20 @@
                     }
                   }
 
-                  // 2. แมตช์ หุ้นรายตัว ในพอร์ต (อัปเดตราคา + จำนวนหุ้น)
+                  // 2. แมตช์ หุ้นรายตัว หรือ เงินสด ในพอร์ต
                   if (fund.holdings && fund.holdings.length > 0) {
                     fund.holdings.forEach(holding => {
-                      if (holding.ticker && holding.ticker.toUpperCase().trim() === scannedCode) {
+                      const holdingTicker = (holding.ticker || '').toUpperCase().trim();
+                      const holdingType = holding.type;
+
+                      if (isCashItem && (holdingType === 'เงินสด' || holdingTicker === 'เงินสด' || holdingTicker === 'CASH')) {
+                        // 💵 กรณีเงินสด: เอาตัวเลขเงินสดใส่ในช่อง shares
+                        if (!isNaN(scannedShares)) holding.shares = scannedShares;
+                        holding.avgCost = 1;
+                        holding.currentPrice = 1;
+                        matchedCount++;
+                      } else if (holdingTicker === scannedCode && !isCashItem) {
+                        // 📈 กรณีหุ้นรายตัว: อัปเดตราคาและจำนวนหุ้น
                         if (!isNaN(scannedPrice)) holding.currentPrice = scannedPrice;
                         if (!isNaN(scannedShares) && scannedShares > 0) holding.shares = scannedShares;
                         matchedCount++;
@@ -1555,9 +1563,9 @@
         if (matchedCount > 0) {
           saveDB();
           renderEntryForm();
-          showToast(`อัปเดต NAV / ราคาหุ้น / จำนวนหุ้น สำเร็จรวม ${matchedCount} รายการ!`);
+          showToast(`อัปเดต NAV / ราคาหุ้น / ยอดเงินสด สำเร็จรวม ${matchedCount} รายการ!`);
         } else {
-          alert('สแกนสำเร็จแต่ไม่พบรหัสกองทุนหรือชื่อหุ้นที่ตรงกัน กรุณาตรวจสอบรหัสในระบบ');
+          alert('สแกนสำเร็จแต่ไม่พบรหัสกองทุน ชื่อหุ้น หรือช่องเงินสดที่ตรงกัน กรุณาตรวจสอบข้อมูลในระบบ');
         }
 
       } catch (err) {
@@ -2694,7 +2702,7 @@
 
     // ================= BACKUP / RESTORE / EXPORT =================
     function backupToJson() {
-      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.8.1', exportedAt: new Date().toISOString(), data: db };
+      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.8.2', exportedAt: new Date().toISOString(), data: db };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
