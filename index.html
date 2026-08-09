@@ -640,16 +640,22 @@
           </div>
           <div class="md:col-span-4">
             <label class="block text-xs font-bold text-slate-600 mb-1">ชื่อเรียกบัญชี/กองทุน</label>
-            <input type="text" id="new-fund-name" placeholder="เช่น Youtrip หรือ Dime e-Savings" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
+            <input type="text" id="new-fund-name" placeholder="เช่น ออมทรัพย์ กสิกร หรือ Dime e-Savings" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
           </div>
           <div class="md:col-span-3">
             <label class="block text-xs font-bold text-blue-700 mb-1"><i class="fa-solid fa-tag mr-1"></i>รหัสกองทุน (Symbol / Code)</label>
-            <input type="text" id="new-fund-symbol" placeholder="เช่น YOUTRIP หรือ DIME-SAVE" class="w-full p-2.5 border border-blue-300 rounded-lg text-sm font-mono font-bold text-blue-900 outline-none bg-blue-50 uppercase">
+            <input type="text" id="new-fund-symbol" placeholder="เช่น KBANK-SAVE หรือ DIME-SAVE" class="w-full p-2.5 border border-blue-300 rounded-lg text-sm font-mono font-bold text-blue-900 outline-none bg-blue-50 uppercase">
           </div>
           <div class="md:col-span-2 flex items-end">
             <button onclick="addNewFund()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold shadow-sm transition-all text-sm whitespace-nowrap">
               <i class="fa-solid fa-plus mr-1.5"></i>เพิ่มรายการ
             </button>
+          </div>
+          <div class="md:col-span-12 pt-2 border-t border-slate-200/60">
+            <label class="flex items-center space-x-2 cursor-pointer text-xs font-bold text-slate-700 hover:text-blue-600">
+              <input type="checkbox" id="new-fund-fixed-cost" class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
+              <span>🔒 กำหนดให้ต้นทุน = มูลค่าปัจจุบันเสมอ (เหมาะสำหรับบัญชีเงินฝาก/ออมทรัพย์ทั่วไปที่ไม่มีการคิดผลตอบแทนผันผวน)</span>
+            </label>
           </div>
         </div>
 
@@ -914,6 +920,7 @@
             if (!f.holdings) f.holdings = [];
             if (f.units === undefined) f.units = 0;
             if (f.symbol === undefined) f.symbol = f.name || '';
+            if (f.isFixedCost === undefined) f.isFixedCost = false; // Parameter กำหนดต้นทุน=มูลค่าจริง
             return f;
           });
         }
@@ -1001,8 +1008,13 @@
                 <button onclick="deleteFund('${f.id}')" class="text-rose-400 hover:text-rose-600 p-1.5"><i class="fa-solid fa-trash-can text-md"></i></button>
               </div>
 
-              <div class="pt-1 border-t border-slate-200/60">
-                <div class="flex flex-wrap gap-1.5 items-center">
+              <div class="pt-2 border-t border-slate-200/60 flex flex-col gap-2">
+                <label class="flex items-center space-x-2 cursor-pointer text-xs font-bold text-slate-700">
+                  <input type="checkbox" ${f.isFixedCost ? 'checked' : ''} onchange="toggleFundFixedCost('${f.id}', this.checked)" class="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5">
+                  <span class="${f.isFixedCost ? 'text-blue-700' : 'text-slate-600'}">🔒 ต้นทุน = มูลค่าปัจจุบันเสมอ (เงินฝาก/ออมทรัพย์)</span>
+                </label>
+
+                <div class="flex flex-wrap gap-1.5 items-center pt-1">
                   ${f.subCategories.map(sub => `
                     <span class="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">
                       ${sub.name} (${sub.weight}%)
@@ -1029,6 +1041,7 @@
       const nameInput = document.getElementById('new-fund-name');
       const symbolInput = document.getElementById('new-fund-symbol');
       const catInput = document.getElementById('new-fund-cat');
+      const fixedCostInput = document.getElementById('new-fund-fixed-cost');
 
       if (!nameInput || nameInput.value.trim() === '') return alert('กรุณากรอกชื่อกองทุน/บัญชี');
 
@@ -1041,15 +1054,26 @@
         symbol: symbolVal,
         catId: catInput.value,
         units: 0,
+        isFixedCost: fixedCostInput ? fixedCostInput.checked : false,
         subCategories: [],
         holdings: []
       });
 
       nameInput.value = '';
       if(symbolInput) symbolInput.value = '';
+      if(fixedCostInput) fixedCostInput.checked = false;
       saveDB();
       renderSetupTab();
       showToast('เพิ่มกองทุนเรียบร้อย');
+    }
+
+    function toggleFundFixedCost(id, isChecked) {
+      const fund = db.funds.find(f => f.id === id);
+      if (fund) {
+        fund.isFixedCost = isChecked;
+        saveDB();
+        showToast('อัปเดตการตั้งค่าต้นทุนเรียบร้อยแล้ว');
+      }
     }
 
     function updateFundSymbol(id, newSymbol) {
@@ -1146,7 +1170,6 @@
       }
     }
 
-    // 🎯 ปรับปรุงการคำนวณ: เช็กจากประเภท (item.type === 'เงินสด') เป็นหลัก 100%
     function recalculateFundTotalFromHoldings(fund) {
       let currentTotal = 0;
 
@@ -1154,7 +1177,6 @@
         const shares = parseFloat(item.shares) || 0;
         const currentPrice = parseFloat(item.currentPrice) || 0;
         
-        // เช็กประเภทเงินสดจาก Dropdown เป็นหลัก
         const isCash = item.type === 'เงินสด' || 
                        (item.ticker && item.ticker.toUpperCase().includes('CASH')) || 
                        (item.ticker && item.ticker.includes('เงินสด'));
@@ -1955,18 +1977,28 @@
       }
     }
 
+    // 🎯 ปรับปรุงการคำนวณต้นทุน: เช็กจาก Parameter f.isFixedCost ที่ติ๊กเลือกไว้
     function getCostBasisByFilter(filterVal, monthStr) {
       if (filterVal === 'ALL_PORTFOLIO') {
-        return db.funds.reduce((sum, f) => sum + calculateCumulativeCost(f.id, monthStr), 0);
+        return db.funds.reduce((sum, f) => {
+          const fundCost = f.isFixedCost ? (db.records[monthStr]?.[f.id] || 0) : calculateCumulativeCost(f.id, monthStr);
+          return sum + fundCost;
+        }, 0);
+
       } else if (filterVal.startsWith('CAT_')) {
         const catId = filterVal.replace('CAT_', '');
         const targetFunds = db.funds.filter(f => f.catId === catId);
-        return targetFunds.reduce((sum, f) => sum + calculateCumulativeCost(f.id, monthStr), 0);
+        return targetFunds.reduce((sum, f) => {
+          const fundCost = f.isFixedCost ? (db.records[monthStr]?.[f.id] || 0) : calculateCumulativeCost(f.id, monthStr);
+          return sum + fundCost;
+        }, 0);
+
       } else if (filterVal.startsWith('SUBCAT_')) {
         const subName = filterVal.replace('SUBCAT_', '');
         let totalSubCost = 0;
         db.funds.forEach(f => {
-          const fundCost = calculateCumulativeCost(f.id, monthStr);
+          const fundCost = f.isFixedCost ? (db.records[monthStr]?.[f.id] || 0) : calculateCumulativeCost(f.id, monthStr);
+
           if (f.subCategories && f.subCategories.length > 0) {
             const subMatch = f.subCategories.find(s => s.name.trim() === subName);
             if (subMatch) totalSubCost += fundCost * (subMatch.weight / 100);
@@ -1975,7 +2007,12 @@
           }
         });
         return totalSubCost;
+
       } else {
+        const fund = db.funds.find(f => f.id === filterVal);
+        if (fund && fund.isFixedCost) {
+          return db.records[monthStr]?.[fund.id] || 0; // คืนค่ามูลค่าปัจจุบันเป็นต้นทุนทันที
+        }
         return calculateCumulativeCost(filterVal, monthStr);
       }
     }
@@ -2705,7 +2742,7 @@
 
     // ================= BACKUP / RESTORE / EXPORT =================
     function backupToJson() {
-      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.8.5', exportedAt: new Date().toISOString(), data: db };
+      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.9.0', exportedAt: new Date().toISOString(), data: db };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -2748,6 +2785,7 @@
               if (!f.holdings) f.holdings = [];
               if (f.units === undefined) f.units = 0;
               if (f.symbol === undefined) f.symbol = f.name || '';
+              if (f.isFixedCost === undefined) f.isFixedCost = false;
               return f;
             });
           }
