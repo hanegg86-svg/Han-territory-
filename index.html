@@ -2021,40 +2021,49 @@
       }
     }
 
-    // 🌟 ฟังก์ชันคำนวณ Trailing Returns ใหม่: ถอยหาเดือนที่ใกล้ที่สุดก่อนหน้า
+    // 🌟 ฟังก์ชันคำนวณ Trailing Returns ฉบับแก้ไขถูกต้องตามหลักทางการเงิน (v4.2.0)
     function calculateTrailingReturn(filterId, endMonth, monthsBack) {
       const allMonths = Object.keys(db.records).sort();
       const endIdx = allMonths.indexOf(endMonth);
       if (endIdx === -1) return null;
 
+      // 1. คำนวณเดือนเป้าหมายในอดีต (Target Start Month)
       const [endYear, endM] = endMonth.split('-').map(Number);
       const targetDate = new Date(endYear, endM - 1 - monthsBack, 1);
       const targetMonthStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
 
-      // ดึงรายชื่อเดือนทั้งหมดที่เกิดขึ้นก่อนหรือเท่ากับเดือนเป้าหมาย
+      // 2. ถอยหาเดือนที่มีข้อมูลใกล้เคียงที่สุดก่อนหน้าหรือเท่ากับ targetMonthStr
       const validPreviousMonths = allMonths.filter(m => m <= targetMonthStr);
-
       if (validPreviousMonths.length === 0) {
-        return null; // ไม่มีข้อมูลก่อนหน้านั้นเลย แสดง N/A
+        return null; // ไม่มีข้อมูลย้อนหลังถึงช่วงเวลานี้ ให้ขึ้น N/A
       }
+      const startMonth = validPreviousMonths[validPreviousMonths.length - 1];
 
+      // 3. ดึงมูลค่าตลาด ณ เดือนเริ่มต้น และ เดือนปัจจุบัน
+      const startVal = getMarketValueByFilter(filterId, startMonth);
       const endVal = getMarketValueByFilter(filterId, endMonth);
+
+      if (startVal <= 0) return null; // มูลค่าเริ่มต้นเป็น 0 ไม่สามารถคิด % ได้
+
+      // 4. คำนวณเงินลงทุนที่ซื้อ/ขายเพิ่ม (Net Capital Flow) ระหว่างทาง
+      const startCost = getCostBasisByFilter(filterId, startMonth);
       const endCost = getCostBasisByFilter(filterId, endMonth);
+      const netFlow = endCost - startCost;
 
-      if (endCost <= 0) return 0;
+      // 5. คำนวณผลตอบแทนที่เกิดจากพอร์ตจริง (หักเงินเติมออก)
+      const adjustedEndVal = endVal - netFlow;
+      const hpr = ((adjustedEndVal / startVal) - 1) * 100;
 
-      const netProfitEnd = endVal - endCost;
-      const absoluteReturn = (netProfitEnd / endCost) * 100;
-
+      // 6. กรณี 3 ปีขึ้นไป (monthsBack >= 36) ให้แปลงเป็นอัตราต่อปี (Annualized / CAGR)
       if (monthsBack >= 36) {
         const years = monthsBack / 12;
-        if (endVal > 0 && endCost > 0) {
-          const cagr = (Math.pow(endVal / endCost, 1 / years) - 1) * 100;
+        if (adjustedEndVal > 0) {
+          const cagr = (Math.pow(adjustedEndVal / startVal, 1 / years) - 1) * 100;
           return cagr;
         }
       }
 
-      return absoluteReturn;
+      return hpr;
     }
 
     function renderIndividualChart() {
@@ -2814,7 +2823,7 @@
 
     // ================= BACKUP / RESTORE / EXPORT =================
     function backupToJson() {
-      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v4.1.0', exportedAt: new Date().toISOString(), data: db };
+      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v4.2.0', exportedAt: new Date().toISOString(), data: db };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
