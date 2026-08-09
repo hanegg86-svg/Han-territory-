@@ -1144,26 +1144,22 @@
       }
     }
 
+    // 🎯 แก้ไขฟังก์ชันคำนวณมูลค่ารวมให้อ่านเงินสดแม่นยำ 100%
     function recalculateFundTotalFromHoldings(fund) {
       let currentTotal = 0;
-      let totalCost = 0;
 
       (fund.holdings || []).forEach(item => {
         const shares = parseFloat(item.shares) || 0;
-        const avgCost = parseFloat(item.avgCost) || 0;
         const currentPrice = parseFloat(item.currentPrice) || 0;
-
-        const isCash = item.type === 'เงินสด' || (item.ticker && item.ticker.toUpperCase() === 'CASH');
+        const isCash = item.type === 'เงินสด' || (item.ticker && item.ticker.toUpperCase().includes('CASH')) || (item.ticker && item.ticker.includes('เงินสด'));
 
         if (isCash) {
-          // 💡 เงินสดในพอร์ตหุ้น: คิดมูลค่าปัจจุบันตามจำนวนเงินสดในช่อง shares
-          const cashVal = shares;
-          currentTotal += cashVal;
-          totalCost += cashVal; 
+          // 💵 สำหรับเงินสด: นำค่าจากช่อง shares (ถ้ามี) หรือ currentPrice มาเป็นตัวเลขเงินสดตรงๆ
+          const cashAmount = shares > 0 ? shares : currentPrice;
+          currentTotal += cashAmount;
         } else {
-          // 📈 หุ้นรายตัว: คำนวณตามจำนวนหุ้น x ราคา
+          // 📈 สำหรับหุ้น: จำนวนหุ้น x ราคาปัจจุบัน
           currentTotal += (shares * currentPrice);
-          totalCost += (shares * avgCost);
         }
       });
 
@@ -1183,10 +1179,11 @@
       fund.holdings.forEach(item => {
         const shares = parseFloat(item.shares) || 0;
         const price = parseFloat(item.currentPrice) || 0;
-        const isCash = item.type === 'เงินสด' || (item.ticker && item.ticker.toUpperCase() === 'CASH');
+        const isCash = item.type === 'เงินสด' || (item.ticker && item.ticker.toUpperCase().includes('CASH')) || (item.ticker && item.ticker.includes('เงินสด'));
         
-        const itemVal = isCash ? shares : (shares * price);
-        typeSums[item.type] = (typeSums[item.type] || 0) + itemVal;
+        const itemVal = isCash ? (shares > 0 ? shares : price) : (shares * price);
+        const itemType = isCash ? 'เงินสด' : (item.type || 'หุ้นไทย');
+        typeSums[itemType] = (typeSums[itemType] || 0) + itemVal;
       });
 
       fund.subCategories = Object.keys(typeSums).map(type => ({
@@ -1358,11 +1355,11 @@
                   <span class="col-span-2 text-right">จำนวนหุ้น/เงินสด</span>
                   <span class="col-span-2 text-right">ต้นทุน/หุ้น</span>
                   <span class="col-span-2 text-right">ราคาปัจจุบัน</span>
-                  <span class="col-span-2 text-right">กำไร/ขาดทุน</span>
+                  <span class="col-span-2 text-right">กำไร/มูลค่า</span>
                 </div>
 
                 ${(f.holdings || []).map((item, idx) => {
-                  const isCash = item.type === 'เงินสด' || (item.ticker && item.ticker.toUpperCase() === 'CASH');
+                  const isCash = item.type === 'เงินสด' || (item.ticker && item.ticker.toUpperCase().includes('CASH')) || (item.ticker && item.ticker.includes('เงินสด'));
                   const shares = parseFloat(item.shares) || 0;
                   const avgCost = isCash ? 1 : (parseFloat(item.avgCost) || 0);
                   const currentPrice = isCash ? 1 : (parseFloat(item.currentPrice) || 0);
@@ -1400,7 +1397,7 @@
                              class="col-span-2 p-1 border border-blue-200 ${isCash ? 'bg-slate-100' : 'bg-blue-50/30'} rounded font-mono text-right text-xs">
 
                       <div class="col-span-2 flex items-center justify-between pl-1">
-                        <span class="font-mono text-[11px] font-bold ${isPos ? 'text-emerald-600' : 'text-rose-600'}">
+                        <span class="font-mono text-[11px] font-bold ${isCash ? 'text-blue-700' : (isPos ? 'text-emerald-600' : 'text-rose-600')}">
                           ${isCash ? '฿' + formatNumber(currentVal) : ((isPos ? '+' : '') + formatNumber(profit))}
                         </span>
                         <button onclick="removeHoldingItem('${f.id}', ${idx})" class="text-rose-400 hover:text-rose-600 p-0.5">
@@ -1517,7 +1514,7 @@
               const scannedCode = (item.symbol || '').toUpperCase().trim();
               const scannedPrice = parseFloat(item.price || item.nav);
               const scannedShares = parseFloat(item.shares);
-              const isCashItem = item.isCash || scannedCode === 'เงินสด' || scannedCode === 'CASH';
+              const isCashItem = item.isCash || scannedCode.includes('เงินสด') || scannedCode.includes('CASH');
 
               if (scannedCode) {
                 db.funds.forEach(fund => {
@@ -1539,7 +1536,7 @@
                       const holdingTicker = (holding.ticker || '').toUpperCase().trim();
                       const holdingType = holding.type;
 
-                      if (isCashItem && (holdingType === 'เงินสด' || holdingTicker === 'เงินสด' || holdingTicker === 'CASH')) {
+                      if (isCashItem && (holdingType === 'เงินสด' || holdingTicker.includes('เงินสด') || holdingTicker.includes('CASH'))) {
                         // 💵 กรณีเงินสด: เอาตัวเลขเงินสดใส่ในช่อง shares
                         if (!isNaN(scannedShares)) holding.shares = scannedShares;
                         holding.avgCost = 1;
@@ -2702,7 +2699,7 @@
 
     // ================= BACKUP / RESTORE / EXPORT =================
     function backupToJson() {
-      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.8.2', exportedAt: new Date().toISOString(), data: db };
+      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.8.3', exportedAt: new Date().toISOString(), data: db };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
