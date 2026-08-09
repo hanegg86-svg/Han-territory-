@@ -527,8 +527,8 @@
     <div id="tab-entry" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
-          <h2 class="text-xl font-bold text-slate-900">บันทึกยอดเงินประจำเดือน & อัปเดต NAV</h2>
-          <p class="text-sm text-slate-500">อัปเดตค่า NAV หรือจำนวนหน่วย ระบบจะคำนวณมูลค่ารวมให้อัตโนมัติ</p>
+          <h2 class="text-xl font-bold text-slate-900">บันทึกยอดเงินประจำเดือน & อัปเดต NAV / ราคาหุ้น</h2>
+          <p class="text-sm text-slate-500">อัปเดตค่า NAV ราคาหุ้นรายตัว หรือจำนวนหน่วย ระบบจะคำนวณมูลค่ารวมให้อัตโนมัติ</p>
         </div>
         <div>
           <input type="month" id="entry-month" onchange="changeEntryMonth()" class="p-3 border-2 border-blue-500 rounded-xl text-md font-bold text-blue-700 outline-none cursor-pointer bg-blue-50">
@@ -540,8 +540,8 @@
         <div class="flex items-center space-x-3">
           <div class="p-2.5 bg-blue-600 text-white rounded-lg shadow-md"><i class="fa-solid fa-wand-magic-sparkles text-lg"></i></div>
           <div>
-            <h4 class="text-sm font-bold text-slate-800">สแกนอ่าน NAV จากสกรีนช็อตด้วย Gemini 3.1 Flash-Lite</h4>
-            <p class="text-xs text-slate-500">ระบบจะนำรหัสกองทุนจากภาพมาแมตช์กับ Symbol แล้วเติมค่า NAV ให้อัตโนมัติ</p>
+            <h4 class="text-sm font-bold text-slate-800">สแกนอ่าน NAV / ราคาหุ้น จากสกรีนช็อตด้วย Gemini 3.1 Flash-Lite</h4>
+            <p class="text-xs text-slate-500">ระบบจะนำรหัสกองทุน/ชื่อหุ้นจากภาพมาแมตช์แล้วเติมค่าให้อัตโนมัติ</p>
           </div>
         </div>
         <label class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-md whitespace-nowrap">
@@ -600,7 +600,7 @@
         <div class="flex items-center space-x-3">
           <div class="p-2 bg-blue-500/20 text-blue-400 rounded-lg"><i class="fa-solid fa-key text-xl"></i></div>
           <div>
-            <h3 class="text-lg font-bold">ตั้งค่า Gemini API Key (สำหรับสแกนอ่านภาพ NAV)</h3>
+            <h3 class="text-lg font-bold">ตั้งค่า Gemini API Key (สำหรับสแกนอ่านภาพ NAV และราคาหุ้น)</h3>
             <p class="text-xs text-slate-400">คีย์จะถูกเก็บบนเครื่องของคุณเอง (LocalStorage) ปลอดภัย 100%</p>
           </div>
         </div>
@@ -625,7 +625,7 @@
 
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <h2 class="text-xl font-bold text-slate-900 mb-1">เพิ่ม/ลบ รายชื่อบัญชีและกองทุน</h2>
-        <p class="text-sm text-slate-500 mb-4">เพิ่มชื่อกองทุน พร้อมระบุ <b>รหัสกองทุน (Symbol)</b> เพื่อให้ AI นำมาแมตช์ได้ถูกต้อง</p>
+        <p class="text-sm text-slate-500 mb-4">เพิ่มชื่อกองทุน/บัญชีหุ้น พร้อมระบุ <b>รหัสกองทุน (Symbol)</b> เพื่อให้ AI นำมาแมตช์ได้ถูกต้อง</p>
 
         <!-- Form Input Grid -->
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
@@ -633,22 +633,22 @@
             <label class="block text-xs font-bold text-slate-600 mb-1">กลุ่มสภาพคล่อง</label>
             <select id="new-fund-cat" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
               <option value="high">สภาพคล่องสูง</option>
-              <option value="med">สภาพคล่องปานกลาง</option>
+              <option value="med">สภาพคล่องปานกลาง (หุ้น/เงินสด)</option>
               <option value="low">สภาพคล่องต่ำ</option>
               <option value="ins">ประกัน / อื่นๆ</option>
             </select>
           </div>
           <div class="md:col-span-4">
             <label class="block text-xs font-bold text-slate-600 mb-1">ชื่อเรียกบัญชี/กองทุน</label>
-            <input type="text" id="new-fund-name" placeholder="เช่น กองทุนตราสารหนี้กสิกร" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
+            <input type="text" id="new-fund-name" placeholder="เช่น พอร์ตหุ้น InnovestX หรือ K-SF-SSF" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
           </div>
           <div class="md:col-span-3">
             <label class="block text-xs font-bold text-blue-700 mb-1"><i class="fa-solid fa-tag mr-1"></i>รหัสกองทุน (Symbol / Code)</label>
-            <input type="text" id="new-fund-symbol" placeholder="เช่น K-SF-SSF หรือ SCBKEQTG" class="w-full p-2.5 border border-blue-300 rounded-lg text-sm font-mono font-bold text-blue-900 outline-none bg-blue-50 uppercase">
+            <input type="text" id="new-fund-symbol" placeholder="เช่น INVX-STOCKS หรือ K-SF-SSF" class="w-full p-2.5 border border-blue-300 rounded-lg text-sm font-mono font-bold text-blue-900 outline-none bg-blue-50 uppercase">
           </div>
           <div class="md:col-span-2 flex items-end">
             <button onclick="addNewFund()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold shadow-sm transition-all text-sm whitespace-nowrap">
-              <i class="fa-solid fa-plus mr-1.5"></i>เพิ่มกองทุน
+              <i class="fa-solid fa-plus mr-1.5"></i>เพิ่มรายการ
             </button>
           </div>
         </div>
@@ -739,7 +739,7 @@
     let db = {
       categories: {
         high: { id: 'high', name: 'สภาพคล่องสูง', color: 'emerald' },
-        med: { id: 'med', name: 'สภาพคล่องปานกลาง', color: 'amber' },
+        med: { id: 'med', name: 'สภาพคล่องปานกลาง (หุ้น/เงินสด)', color: 'amber' },
         low: { id: 'low', name: 'สภาพคล่องต่ำ', color: 'purple' },
         ins: { id: 'ins', name: 'มูลค่าสะสมประกัน', color: 'rose' }
       },
@@ -756,7 +756,7 @@
     let autoSaveTimer = null;
     let activeEntryMonth = '';
     let entryDirty = false;
-    let currentTab = 'tab-compare'; // เริ่มต้นที่หน้าแดชบอร์ด
+    let currentTab = 'tab-compare';
     let renderUsingCarryForward = false;
     let selectedSubCatsForCompare = [];
 
@@ -816,7 +816,7 @@
     function updateStorageSizeDisplay() {
       const dbData = localStorage.getItem('ProWealthDB_v2') || '';
       const bytes = new Blob([dbData]).size;
-      const maxBytes = 5 * 1024 * 1024; // 5 MB Max
+      const maxBytes = 5 * 1024 * 1024;
       const pct = Math.min(100, (bytes / maxBytes) * 100);
 
       let formattedSize = '';
@@ -910,7 +910,8 @@
         
         if (db.funds && db.funds.length > 0) {
           db.funds = db.funds.map(f => {
-            if (!f.subCategories) { f.subCategories = []; }
+            if (!f.subCategories) f.subCategories = [];
+            if (!f.holdings) f.holdings = [];
             if (f.units === undefined) f.units = 0;
             if (f.symbol === undefined) f.symbol = f.name || '';
             return f;
@@ -991,10 +992,10 @@
             <div class="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-3">
               <div class="flex justify-between items-center gap-2">
                 <div class="flex-1 space-y-1">
-                  <input type="text" value="${f.name}" onchange="updateFundName('${f.id}', this.value)" placeholder="ชื่อเรียกกองทุน" class="bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none text-sm font-bold text-slate-800 w-full">
+                  <input type="text" value="${f.name}" onchange="updateFundName('${f.id}', this.value)" placeholder="ชื่อเรียกบัญชี/กองทุน" class="bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none text-sm font-bold text-slate-800 w-full">
                   <div class="flex items-center space-x-1.5">
                     <span class="text-[10px] font-bold text-slate-400">รหัส:</span>
-                    <input type="text" value="${f.symbol || ''}" onchange="updateFundSymbol('${f.id}', this.value)" placeholder="รหัสสแกน AI (เช่น K-SF-SSF)" class="bg-white border border-slate-300 focus:border-blue-500 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-blue-800 uppercase outline-none">
+                    <input type="text" value="${f.symbol || ''}" onchange="updateFundSymbol('${f.id}', this.value)" placeholder="รหัสสแกน AI (เช่น INVX-STOCKS)" class="bg-white border border-slate-300 focus:border-blue-500 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-blue-800 uppercase outline-none">
                   </div>
                 </div>
                 <button onclick="deleteFund('${f.id}')" class="text-rose-400 hover:text-rose-600 p-1.5"><i class="fa-solid fa-trash-can text-md"></i></button>
@@ -1040,7 +1041,8 @@
         symbol: symbolVal,
         catId: catInput.value,
         units: 0,
-        subCategories: []
+        subCategories: [],
+        holdings: []
       });
 
       nameInput.value = '';
@@ -1099,6 +1101,102 @@
         db.transactions = db.transactions.filter(t => t.fundId !== id); 
         saveDB(); renderSetupTab();
       }
+    }
+
+    // ================= HOLDINGS MANAGEMENT (STOCKS & CASH) =================
+    function addHoldingItem(fundId) {
+      const fund = db.funds.find(f => f.id === fundId);
+      if (!fund) return;
+      if (!fund.holdings) fund.holdings = [];
+      
+      fund.holdings.push({ ticker: '', type: 'หุ้นไทย', shares: 0, avgCost: 0, currentPrice: 0 });
+      saveDB();
+      renderEntryForm();
+    }
+
+    function removeHoldingItem(fundId, index) {
+      const fund = db.funds.find(f => f.id === fundId);
+      if (fund && fund.holdings) {
+        fund.holdings.splice(index, 1);
+        recalculateFundTotalFromHoldings(fund);
+        saveDB();
+        renderEntryForm();
+      }
+    }
+
+    function updateHoldingItem(fundId, index, field, value) {
+      const fund = db.funds.find(f => f.id === fundId);
+      if (fund && fund.holdings && fund.holdings[index]) {
+        const isNumeric = ['shares', 'avgCost', 'currentPrice'].includes(field);
+        fund.holdings[index][field] = isNumeric ? (parseFloat(value) || 0) : value;
+        recalculateFundTotalFromHoldings(fund);
+        saveDB();
+      }
+    }
+
+    function recalculateFundTotalFromHoldings(fund) {
+      let currentTotal = 0;
+      let totalCost = 0;
+
+      (fund.holdings || []).forEach(item => {
+        const shares = parseFloat(item.shares) || 0;
+        const avgCost = parseFloat(item.avgCost) || 0;
+        const currentPrice = parseFloat(item.currentPrice) || 0;
+
+        currentTotal += (shares * currentPrice);
+        totalCost += (shares * avgCost);
+      });
+
+      const totalEl = document.getElementById(`entry-${fund.id}`);
+      if (totalEl) {
+        totalEl.value = formatNumber(currentTotal);
+      }
+
+      syncHoldingCostToTransaction(fund.id, totalCost);
+      updateSubCategoriesFromHoldings(fund, currentTotal);
+      scheduleAutoSave(fund.id, currentTotal);
+    }
+
+    function syncHoldingCostToTransaction(fundId, totalCost) {
+      const currentMonth = activeEntryMonth || getCurrentMonth();
+      const txDate = `${currentMonth}-01`;
+
+      let tx = db.transactions.find(t => t.fundId === fundId && t.date.startsWith(currentMonth));
+
+      if (totalCost > 0) {
+        if (tx) {
+          tx.amount = totalCost;
+          tx.type = 'BUY';
+        } else {
+          db.transactions.push({
+            id: 'tx_auto_' + generateId(),
+            date: txDate,
+            fundId: fundId,
+            type: 'BUY',
+            amount: totalCost
+          });
+        }
+      } else if (tx) {
+        db.transactions = db.transactions.filter(t => t.id !== tx.id);
+      }
+    }
+
+    function updateSubCategoriesFromHoldings(fund, totalVal) {
+      if (totalVal === 0) return;
+
+      const typeSums = {};
+      fund.holdings.forEach(item => {
+        const shares = parseFloat(item.shares) || 0;
+        const price = parseFloat(item.currentPrice) || 0;
+        const itemVal = shares * price;
+        typeSums[item.type] = (typeSums[item.type] || 0) + itemVal;
+      });
+
+      fund.subCategories = Object.keys(typeSums).map(type => ({
+        id: 'sub_' + Math.random().toString(36).substr(2, 5),
+        name: type,
+        weight: parseFloat(((typeSums[type] / totalVal) * 100).toFixed(2))
+      }));
     }
 
     // ================= ENTRY TAB & GEMINI DIRECT API SCAN =================
@@ -1202,7 +1300,7 @@
         let html = `
           <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <h3 class="font-bold text-${cat.color}-600 mb-4 uppercase tracking-wide">${cat.name}</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
+            <div class="grid grid-cols-1 ${cat.id === 'med' ? 'grid-cols-1' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4">`;
         
         catFunds.forEach(f => {
           let val = currentData[f.id] !== undefined ? currentData[f.id] : '';
@@ -1226,8 +1324,8 @@
           const unitsVal = f.units || 0;
           const calculatedNav = (unitsVal > 0 && currentAmount > 0) ? (currentAmount / unitsVal).toFixed(4) : '';
           
-          // ซ่อนช่อง NAV / Units สำหรับหมวด high (สภาพคล่องสูง) และ ins (ประกัน)
-          const showNavAndUnits = (cat.id !== 'high' && cat.id !== 'ins');
+          const showNavAndUnits = (cat.id !== 'high' && cat.id !== 'ins' && cat.id !== 'med');
+          const isMedCategory = (cat.id === 'med');
 
           html += `
             <div class="bg-slate-50 p-3.5 rounded-lg border border-slate-200 relative space-y-2">
@@ -1254,10 +1352,76 @@
               </div>
               ` : ''}
 
+              ${isMedCategory ? `
+              <!-- ตารางบันทึกหุ้นรายตัว + ต้นทุน -->
+              <div id="holdings-list-${f.id}" class="space-y-2 bg-white p-3 rounded-lg border border-slate-200 overflow-x-auto">
+                <div class="grid grid-cols-12 gap-1 text-[10px] font-bold text-slate-500 border-b pb-1 min-w-[500px]">
+                  <span class="col-span-2">ชื่อหุ้น/เงินสด</span>
+                  <span class="col-span-2">ประเภท</span>
+                  <span class="col-span-2 text-right">จำนวนหุ้น</span>
+                  <span class="col-span-2 text-right">ต้นทุน/หุ้น</span>
+                  <span class="col-span-2 text-right">ราคาปัจจุบัน</span>
+                  <span class="col-span-2 text-right">กำไร/ขาดทุน</span>
+                </div>
+
+                ${(f.holdings || []).map((item, idx) => {
+                  const shares = parseFloat(item.shares) || 0;
+                  const avgCost = parseFloat(item.avgCost) || 0;
+                  const currentPrice = parseFloat(item.currentPrice) || 0;
+                  
+                  const totalCost = shares * avgCost;
+                  const currentVal = shares * currentPrice;
+                  const profit = currentVal - totalCost;
+                  const isPos = profit >= 0;
+
+                  return `
+                    <div class="grid grid-cols-12 gap-1 items-center min-w-[500px] text-xs py-1 border-b border-slate-100">
+                      <input type="text" value="${item.ticker}" placeholder="เช่น PTT" 
+                             onchange="updateHoldingItem('${f.id}', ${idx}, 'ticker', this.value)" 
+                             class="col-span-2 p-1 border rounded font-mono uppercase text-xs">
+                      
+                      <select onchange="updateHoldingItem('${f.id}', ${idx}, 'type', this.value)" 
+                              class="col-span-2 p-1 border rounded text-[11px] bg-white">
+                        <option value="หุ้นไทย" ${item.type === 'หุ้นไทย' ? 'selected' : ''}>หุ้นไทย</option>
+                        <option value="หุ้นต่างประเทศ" ${item.type === 'หุ้นต่างประเทศ' ? 'selected' : ''}>หุ้นต่างประเทศ</option>
+                        <option value="เงินสด" ${item.type === 'เงินสด' ? 'selected' : ''}>เงินสด</option>
+                      </select>
+
+                      <input type="number" value="${item.shares || ''}" placeholder="0" 
+                             oninput="updateHoldingItem('${f.id}', ${idx}, 'shares', this.value)" 
+                             class="col-span-2 p-1 border rounded font-mono text-right text-xs">
+
+                      <input type="number" step="0.01" value="${item.avgCost || ''}" placeholder="0.00" 
+                             oninput="updateHoldingItem('${f.id}', ${idx}, 'avgCost', this.value)" 
+                             class="col-span-2 p-1 border border-amber-200 bg-amber-50/30 rounded font-mono text-right text-xs">
+
+                      <input type="number" step="0.01" value="${item.currentPrice || ''}" placeholder="0.00" 
+                             oninput="updateHoldingItem('${f.id}', ${idx}, 'currentPrice', this.value)" 
+                             class="col-span-2 p-1 border border-blue-200 bg-blue-50/30 rounded font-mono text-right text-xs">
+
+                      <div class="col-span-2 flex items-center justify-between pl-1">
+                        <span class="font-mono text-[11px] font-bold ${isPos ? 'text-emerald-600' : 'text-rose-600'}">
+                          ${isPos ? '+' : ''}${formatNumber(profit)}
+                        </span>
+                        <button onclick="removeHoldingItem('${f.id}', ${idx})" class="text-rose-400 hover:text-rose-600 p-0.5">
+                          <i class="fa-solid fa-xmark"></i>
+                        </button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+
+                <button onclick="addHoldingItem('${f.id}')" class="text-[11px] text-blue-600 font-bold hover:underline mt-2 inline-flex items-center">
+                  <i class="fa-solid fa-plus mr-1"></i>เพิ่มรายการหุ้น/เงินสด
+                </button>
+              </div>
+              ` : ''}
+
               <!-- Total value input -->
               <div>
                 <label class="block text-[10px] font-bold text-blue-700">รวมมูลค่าทั้งหมด (บาท)</label>
                 <input type="text" inputmode="decimal" id="entry-${f.id}" value="${displayVal}" placeholder="0.00" 
+                       ${isMedCategory ? 'readonly' : ''}
                        oninput="autoCalcMonthlyFund('${f.id}', 'total')"
                        onblur="this.value = formatNumber(parseLocalNumber(this.value))"
                        onfocus="this.select()"
@@ -1281,7 +1445,7 @@
       setEntryStatus(renderUsingCarryForward ? `<i class="fa-solid fa-info-circle mr-1"></i> โหมดแก้ไข (ข้อมูลยังไม่ถูกบันทึก)` : `<i class="fa-solid fa-check mr-1"></i> ข้อมูลในระบบล่าสุด`);
     }
 
-    // Direct Gemini 3.1 Flash-Lite AI OCR Processing via API Key (Supports Multiple Files)
+    // Direct Gemini 3.1 Flash-Lite AI OCR Processing via API Key (Supports NAV & Stock Price)
     async function processImageWithGemini(event) {
       const files = event.target.files;
       if (!files || files.length === 0) return;
@@ -1314,9 +1478,14 @@
           const { base64Data, mimeType } = await readFileAsBase64(file);
 
           const promptText = `
-            Extract mutual fund names/symbols and their corresponding NAV (Net Asset Value) from this image.
+            Extract mutual fund symbols/names with their NAV, OR stock tickers with their current market prices from this image.
             Return ONLY a clean JSON array with no extra text or markdown syntax.
-            Format: [{"symbol": "K-SF-SSF", "nav": 10.4521}]
+            Format example: 
+            [
+              {"symbol": "K-SF-SSF", "price": 10.4521},
+              {"symbol": "PTT", "price": 34.00},
+              {"symbol": "NVDA", "price": 128.50}
+            ]
           `;
 
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
@@ -1342,39 +1511,51 @@
           if (Array.isArray(items) && items.length > 0) {
             items.forEach(item => {
               const scannedCode = (item.symbol || '').toUpperCase().trim();
-              const navVal = parseFloat(item.nav);
+              const scannedPrice = parseFloat(item.price || item.nav);
 
-              if (scannedCode && !isNaN(navVal)) {
-                const matchedFund = db.funds.find(f => {
-                  const fSymbol = (f.symbol || '').toUpperCase().trim();
-                  const fName = (f.name || '').toUpperCase().trim();
-                  return fSymbol === scannedCode || fName === scannedCode || scannedCode.includes(fSymbol) || fSymbol.includes(scannedCode);
-                });
-
-                if (matchedFund) {
-                  const navEl = document.getElementById(`entry-nav-${matchedFund.id}`);
-                  if (navEl) {
-                    navEl.value = navVal;
-                    autoCalcMonthlyFund(matchedFund.id, 'nav');
-                    matchedCount++;
+              if (scannedCode && !isNaN(scannedPrice)) {
+                db.funds.forEach(fund => {
+                  // 1. แมตช์ NAV กองทุนหลัก
+                  const fSymbol = (fund.symbol || '').toUpperCase().trim();
+                  const fName = (fund.name || '').toUpperCase().trim();
+                  if (fSymbol === scannedCode || fName === scannedCode) {
+                    const navEl = document.getElementById(`entry-nav-${fund.id}`);
+                    if (navEl) {
+                      navEl.value = scannedPrice;
+                      autoCalcMonthlyFund(fund.id, 'nav');
+                      matchedCount++;
+                    }
                   }
-                }
+
+                  // 2. แมตช์ หุ้นรายตัว ในพอร์ต
+                  if (fund.holdings && fund.holdings.length > 0) {
+                    fund.holdings.forEach(holding => {
+                      if (holding.ticker && holding.ticker.toUpperCase().trim() === scannedCode) {
+                        holding.currentPrice = scannedPrice;
+                        matchedCount++;
+                      }
+                    });
+                    recalculateFundTotalFromHoldings(fund);
+                  }
+                });
               }
             });
           }
         }
 
         if (matchedCount > 0) {
-          showToast(`อัปเดต NAV สำเร็จรวม ${matchedCount} รายการ!`);
+          saveDB();
+          renderEntryForm();
+          showToast(`อัปเดต NAV / ราคาหุ้น สำเร็จรวม ${matchedCount} รายการ!`);
         } else {
-          alert('สแกนสำเร็จแต่ไม่พบรหัสกองทุนที่ตรงกัน กรุณาตรวจสอบว่าได้กำหนด Symbol ในแท็บตั้งค่าตรงกับสกรีนช็อต');
+          alert('สแกนสำเร็จแต่ไม่พบรหัสกองทุนหรือชื่อหุ้นที่ตรงกัน กรุณาตรวจสอบรหัสในระบบ');
         }
 
       } catch (err) {
         console.error(err);
         alert('เกิดข้อผิดพลาดในการประมวลผล Gemini AI: ' + err.message);
       } finally {
-        event.target.value = ''; // Reset input
+        event.target.value = '';
       }
     }
 
@@ -1692,7 +1873,7 @@
       
       select.innerHTML += `<option value="ALL_PORTFOLIO">🌟 [พอร์ตสินทรัพย์รวมทั้งหมด]</option>`;
       select.innerHTML += `<option value="CAT_high">💧 [กลุ่มสินทรัพย์สภาพคล่องสูง]</option>`;
-      select.innerHTML += `<option value="CAT_med">🔶 [กลุ่มสินทรัพย์สภาพคล่องปานกลาง]</option>`;
+      select.innerHTML += `<option value="CAT_med">🔶 [กลุ่มสินทรัพย์สภาพคล่องปานกลาง (หุ้น/เงินสด)]</option>`;
       select.innerHTML += `<option value="CAT_low">🔒 [กลุ่มสินทรัพย์สภาพคล่องต่ำ]</option>`;
       select.innerHTML += `<option value="CAT_ins">🛡️ [กลุ่มมูลค่าสะสมประกัน]</option>`;
       
@@ -1704,7 +1885,7 @@
       }
 
       db.funds.forEach(f => {
-        select.innerHTML += `<option value="${f.id}">กองทุน: ${f.name} (${f.symbol || ''})</option>`;
+        select.innerHTML += `<option value="${f.id}">รายการ: ${f.name} (${f.symbol || ''})</option>`;
       });
 
       const months = Object.keys(db.records).sort();
@@ -2540,7 +2721,8 @@
           
           if (db.funds && db.funds.length > 0) {
             db.funds = db.funds.map(f => {
-              if (!f.subCategories) { f.subCategories = []; }
+              if (!f.subCategories) f.subCategories = [];
+              if (!f.holdings) f.holdings = [];
               if (f.units === undefined) f.units = 0;
               if (f.symbol === undefined) f.symbol = f.name || '';
               return f;
