@@ -632,7 +632,7 @@
           <div class="md:col-span-3">
             <label class="block text-xs font-bold text-slate-600 mb-1">กลุ่มสภาพคล่อง</label>
             <select id="new-fund-cat" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
-              <option value="high">สภาพคล่องสูง (ออมทรัพย์/e-Savings)</option>
+              <option value="high">สภาพคล่องสูง (ออมทรัพย์/e-Savings/Youtrip)</option>
               <option value="med">สภาพคล่องปานกลาง (หุ้น/เงินสด)</option>
               <option value="low">สภาพคล่องต่ำ</option>
               <option value="ins">ประกัน / อื่นๆ</option>
@@ -640,11 +640,11 @@
           </div>
           <div class="md:col-span-4">
             <label class="block text-xs font-bold text-slate-600 mb-1">ชื่อเรียกบัญชี/กองทุน</label>
-            <input type="text" id="new-fund-name" placeholder="เช่น Dime e-Savings หรือ พอร์ตหุ้น InnovestX" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
+            <input type="text" id="new-fund-name" placeholder="เช่น Youtrip หรือ Dime e-Savings" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
           </div>
           <div class="md:col-span-3">
             <label class="block text-xs font-bold text-blue-700 mb-1"><i class="fa-solid fa-tag mr-1"></i>รหัสกองทุน (Symbol / Code)</label>
-            <input type="text" id="new-fund-symbol" placeholder="เช่น DIME-SAVE หรือ INVX-STOCKS" class="w-full p-2.5 border border-blue-300 rounded-lg text-sm font-mono font-bold text-blue-900 outline-none bg-blue-50 uppercase">
+            <input type="text" id="new-fund-symbol" placeholder="เช่น YOUTRIP หรือ DIME-SAVE" class="w-full p-2.5 border border-blue-300 rounded-lg text-sm font-mono font-bold text-blue-900 outline-none bg-blue-50 uppercase">
           </div>
           <div class="md:col-span-2 flex items-end">
             <button onclick="addNewFund()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold shadow-sm transition-all text-sm whitespace-nowrap">
@@ -1071,7 +1071,7 @@
       if (!fund) return;
       if (fund.subCategories.length >= 4) return alert('จำกัดสูงสุด 4 ประเภทต่อกองทุนผสมครับ');
       
-      const name = prompt('กรอกชื่อประเภทย่อย (เช่น ทอง, หุ้นต่างประเทศ, เงินสด):');
+      const name = prompt('กรอกชื่อประเภทย่อย (เช่น ทอง, หุ้นต่างประเทศ, เงินสด, ตลาดเงิน):');
       if (!name || name.trim() === '') return;
       const weight = prompt('กรอกสัดส่วนเปอร์เซ็นต์ (%) (เช่น 25):');
       if (!weight || isNaN(parseFloat(weight))) return alert('กรุณากรอกตัวเลขสัดส่วนที่ถูกต้อง');
@@ -1144,7 +1144,7 @@
         const currentPrice = parseFloat(item.currentPrice) || 0;
 
         if (item.type === 'เงินสด' || item.ticker.toUpperCase() === 'CASH') {
-          // 💡 เงินสดในพอร์ตหุ้น: มูลค่าปัจจุบัน = ต้นทุน (คิดแบบ 1:1)
+          // 💡 เงินสดในพอร์ตหุ้น: คิดมูลค่าปัจจุบัน = ต้นทุน (1:1)
           const cashVal = shares > 0 ? shares : currentPrice;
           currentTotal += cashVal;
           totalCost += cashVal; 
@@ -1661,15 +1661,23 @@
           const currentVal = parseLocalNumber(input.value);
           db.records[month][f.id] = currentVal;
 
-          // 💡 LOGIC แยกประเภทเงินฝากสภาพคล่องสูง
+          // 💡 LOGIC บัญชีสภาพคล่องสูง (High Liquidity)
           if (f.catId === 'high') {
-            const isEsaving = f.name.includes('e-Savings') || f.name.includes('ประจำ') || f.name.includes('ดอกเบี้ยสูง') || (f.symbol && f.symbol.includes('SAVE'));
+            const nameUpper = f.name.toUpperCase();
+            const symbolUpper = (f.symbol || '').toUpperCase();
             
-            if (isEsaving) {
-              // 📈 e-Savings / ฝากประจำ: ล็อกต้นทุนฝากเดิมเพื่อสะสม "ดอกเบี้ย" เป็นกำไรบนกราฟ
+            // เช็คว่าเป็น Youtrip, ตลาดเงิน, e-Savings หรือ ฝากประจำ หรือไม่
+            const isInvestmentCash = nameUpper.includes('YOUTRIP') || 
+                                     nameUpper.includes('ตลาดเงิน') || 
+                                     nameUpper.includes('ESAVING') || 
+                                     nameUpper.includes('ประจำ') || 
+                                     symbolUpper.includes('YOUTRIP');
+
+            if (isInvestmentCash) {
+              // 📈 Youtrip / ตลาดเงิน / e-Savings: ล็อกต้นทุนเดิมไว้ เพื่อคำนวณ FX Gain/Loss หรือ ดอกเบี้ย เป็นกำไรบนกราฟ
               syncEsavingCostToTransaction(f.id, currentVal, month);
             } else {
-              // 🔄 ออมทรัพย์ใช้จ่ายหมุนเวียน: Auto-Sync ต้นทุน = ยอดคงเหลือ (1:1) สะดวก ไม่ต้องบันทึกเข้า-ออก
+              // 🔄 ออมทรัพย์ / เผื่อเรียก / เงินสดใช้จ่าย: Auto-Sync ต้นทุน = ยอดคงเหลือ (1:1)
               syncCashCostToTransaction(f.id, currentVal, month);
             }
           }
@@ -1692,7 +1700,7 @@
       return true;
     }
 
-    // 1. Auto-Sync ต้นทุนสำหรับ "ออมทรัพย์ใช้จ่ายหมุนเวียน" (1:1)
+    // 1. Auto-Sync ต้นทุนสำหรับ "ออมทรัพย์ใช้จ่ายหมุนเวียน/เผื่อเรียก" (1:1)
     function syncCashCostToTransaction(fundId, amount, month) {
       const txDate = `${month}-01`;
       let tx = db.transactions.find(t => t.fundId === fundId && t.date.startsWith(month));
@@ -1715,7 +1723,7 @@
       }
     }
 
-    // 2. Sync ต้นทุนสำหรับ "e-Savings / ฝากประจำ" (ล็อกต้นทุนเงินฝากเพื่อคิดดอกเบี้ยเป็นกำไร)
+    // 2. Sync ต้นทุนสำหรับ "Youtrip / ตลาดเงิน / e-Savings / ฝากประจำ" (ล็อกต้นทุนฝากเดิมไว้เพื่อสะสมดอกเบี้ย/กำไร FX)
     function syncEsavingCostToTransaction(fundId, currentAmount, month) {
       const txDate = `${month}-01`;
       const sortedMonths = Object.keys(db.records).filter(m => m < month).sort();
@@ -2758,7 +2766,7 @@
 
     // ================= BACKUP / RESTORE / EXPORT =================
     function backupToJson() {
-      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.6.0', exportedAt: new Date().toISOString(), data: db };
+      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.7.0', exportedAt: new Date().toISOString(), data: db };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
