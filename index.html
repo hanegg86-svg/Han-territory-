@@ -632,7 +632,7 @@
           <div class="md:col-span-3">
             <label class="block text-xs font-bold text-slate-600 mb-1">กลุ่มสภาพคล่อง</label>
             <select id="new-fund-cat" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
-              <option value="high">สภาพคล่องสูง</option>
+              <option value="high">สภาพคล่องสูง (ออมทรัพย์/e-Savings)</option>
               <option value="med">สภาพคล่องปานกลาง (หุ้น/เงินสด)</option>
               <option value="low">สภาพคล่องต่ำ</option>
               <option value="ins">ประกัน / อื่นๆ</option>
@@ -640,11 +640,11 @@
           </div>
           <div class="md:col-span-4">
             <label class="block text-xs font-bold text-slate-600 mb-1">ชื่อเรียกบัญชี/กองทุน</label>
-            <input type="text" id="new-fund-name" placeholder="เช่น พอร์ตหุ้น InnovestX หรือ K-SF-SSF" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
+            <input type="text" id="new-fund-name" placeholder="เช่น Dime e-Savings หรือ พอร์ตหุ้น InnovestX" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
           </div>
           <div class="md:col-span-3">
             <label class="block text-xs font-bold text-blue-700 mb-1"><i class="fa-solid fa-tag mr-1"></i>รหัสกองทุน (Symbol / Code)</label>
-            <input type="text" id="new-fund-symbol" placeholder="เช่น INVX-STOCKS หรือ K-SF-SSF" class="w-full p-2.5 border border-blue-300 rounded-lg text-sm font-mono font-bold text-blue-900 outline-none bg-blue-50 uppercase">
+            <input type="text" id="new-fund-symbol" placeholder="เช่น DIME-SAVE หรือ INVX-STOCKS" class="w-full p-2.5 border border-blue-300 rounded-lg text-sm font-mono font-bold text-blue-900 outline-none bg-blue-50 uppercase">
           </div>
           <div class="md:col-span-2 flex items-end">
             <button onclick="addNewFund()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold shadow-sm transition-all text-sm whitespace-nowrap">
@@ -1103,7 +1103,7 @@
       }
     }
 
-    // ================= HOLDINGS MANAGEMENT (STOCKS & CASH) =================
+    // ================= HOLDINGS MANAGEMENT (STOCKS & CASH IN PORTFOLIO) =================
     function addHoldingItem(fundId) {
       const fund = db.funds.find(f => f.id === fundId);
       if (!fund) return;
@@ -1143,8 +1143,16 @@
         const avgCost = parseFloat(item.avgCost) || 0;
         const currentPrice = parseFloat(item.currentPrice) || 0;
 
-        currentTotal += (shares * currentPrice);
-        totalCost += (shares * avgCost);
+        if (item.type === 'เงินสด' || item.ticker.toUpperCase() === 'CASH') {
+          // 💡 เงินสดในพอร์ตหุ้น: มูลค่าปัจจุบัน = ต้นทุน (คิดแบบ 1:1)
+          const cashVal = shares > 0 ? shares : currentPrice;
+          currentTotal += cashVal;
+          totalCost += cashVal; 
+        } else {
+          // 📈 หุ้นรายตัว: คำนวณตามจำนวนหุ้น x ราคา
+          currentTotal += (shares * currentPrice);
+          totalCost += (shares * avgCost);
+        }
       });
 
       const totalEl = document.getElementById(`entry-${fund.id}`);
@@ -1169,15 +1177,13 @@
           tx.type = 'BUY';
         } else {
           db.transactions.push({
-            id: 'tx_auto_' + generateId(),
+            id: 'tx_auto_' + fundId + '_' + currentMonth,
             date: txDate,
             fundId: fundId,
             type: 'BUY',
             amount: totalCost
           });
         }
-      } else if (tx) {
-        db.transactions = db.transactions.filter(t => t.id !== tx.id);
       }
     }
 
@@ -1188,7 +1194,7 @@
       fund.holdings.forEach(item => {
         const shares = parseFloat(item.shares) || 0;
         const price = parseFloat(item.currentPrice) || 0;
-        const itemVal = shares * price;
+        const itemVal = (item.type === 'เงินสด' || item.ticker.toUpperCase() === 'CASH') ? (shares > 0 ? shares : price) : (shares * price);
         typeSums[item.type] = (typeSums[item.type] || 0) + itemVal;
       });
 
@@ -1369,8 +1375,9 @@
                   const avgCost = parseFloat(item.avgCost) || 0;
                   const currentPrice = parseFloat(item.currentPrice) || 0;
                   
-                  const totalCost = shares * avgCost;
-                  const currentVal = shares * currentPrice;
+                  const isCash = item.type === 'เงินสด' || item.ticker.toUpperCase() === 'CASH';
+                  const totalCost = isCash ? (shares > 0 ? shares : currentPrice) : (shares * avgCost);
+                  const currentVal = isCash ? (shares > 0 ? shares : currentPrice) : (shares * currentPrice);
                   const profit = currentVal - totalCost;
                   const isPos = profit >= 0;
 
@@ -1650,7 +1657,23 @@
       
       db.funds.forEach(f => {
         const input = document.getElementById(`entry-${f.id}`);
-        if (input) db.records[month][f.id] = parseLocalNumber(input.value);
+        if (input) {
+          const currentVal = parseLocalNumber(input.value);
+          db.records[month][f.id] = currentVal;
+
+          // 💡 LOGIC แยกประเภทเงินฝากสภาพคล่องสูง
+          if (f.catId === 'high') {
+            const isEsaving = f.name.includes('e-Savings') || f.name.includes('ประจำ') || f.name.includes('ดอกเบี้ยสูง') || (f.symbol && f.symbol.includes('SAVE'));
+            
+            if (isEsaving) {
+              // 📈 e-Savings / ฝากประจำ: ล็อกต้นทุนฝากเดิมเพื่อสะสม "ดอกเบี้ย" เป็นกำไรบนกราฟ
+              syncEsavingCostToTransaction(f.id, currentVal, month);
+            } else {
+              // 🔄 ออมทรัพย์ใช้จ่ายหมุนเวียน: Auto-Sync ต้นทุน = ยอดคงเหลือ (1:1) สะดวก ไม่ต้องบันทึกเข้า-ออก
+              syncCashCostToTransaction(f.id, currentVal, month);
+            }
+          }
+        }
       });
       saveDB();
 
@@ -1667,6 +1690,59 @@
         if (showToastFlag) showToast('บันทึกอัตโนมัติแล้ว');
       }
       return true;
+    }
+
+    // 1. Auto-Sync ต้นทุนสำหรับ "ออมทรัพย์ใช้จ่ายหมุนเวียน" (1:1)
+    function syncCashCostToTransaction(fundId, amount, month) {
+      const txDate = `${month}-01`;
+      let tx = db.transactions.find(t => t.fundId === fundId && t.date.startsWith(month));
+
+      if (amount > 0) {
+        if (tx) {
+          tx.amount = amount;
+          tx.type = 'BUY';
+        } else {
+          db.transactions.push({
+            id: 'tx_auto_cash_' + fundId + '_' + month,
+            date: txDate,
+            fundId: fundId,
+            type: 'BUY',
+            amount: amount
+          });
+        }
+      } else if (tx) {
+        db.transactions = db.transactions.filter(t => t.id !== tx.id);
+      }
+    }
+
+    // 2. Sync ต้นทุนสำหรับ "e-Savings / ฝากประจำ" (ล็อกต้นทุนเงินฝากเพื่อคิดดอกเบี้ยเป็นกำไร)
+    function syncEsavingCostToTransaction(fundId, currentAmount, month) {
+      const txDate = `${month}-01`;
+      const sortedMonths = Object.keys(db.records).filter(m => m < month).sort();
+      let prevCost = 0;
+      
+      if (sortedMonths.length > 0) {
+        const prevMonth = sortedMonths[sortedMonths.length - 1];
+        prevCost = calculateCumulativeCost(fundId, prevMonth);
+      }
+
+      let tx = db.transactions.find(t => t.fundId === fundId && t.date.startsWith(month));
+      let targetCost = prevCost > 0 ? prevCost : currentAmount;
+
+      if (targetCost > 0) {
+        if (tx) {
+          tx.amount = targetCost;
+          tx.type = 'BUY';
+        } else {
+          db.transactions.push({
+            id: 'tx_auto_esave_' + fundId + '_' + month,
+            date: txDate,
+            fundId: fundId,
+            type: 'BUY',
+            amount: targetCost
+          });
+        }
+      }
     }
 
     function saveMonthlyData(ev) {
@@ -2682,7 +2758,7 @@
 
     // ================= BACKUP / RESTORE / EXPORT =================
     function backupToJson() {
-      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.5.0', exportedAt: new Date().toISOString(), data: db };
+      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.6.0', exportedAt: new Date().toISOString(), data: db };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
