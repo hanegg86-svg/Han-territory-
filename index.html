@@ -1651,6 +1651,7 @@
       }, 800);
     }
 
+    // 💡 ปรับปรุงsaveEntryMonth: บันทึกเฉพาะยอดเงินคงเหลือประจำเดือน โดยไม่สร้าง/แก้ไขรายการใน Transaction Log ของเงินฝากอีกต่อไป
     function saveEntryMonth(month, { showToastFlag = true, silent = false } = {}) {
       if (!month || db.funds.length === 0) return false;
       if (!db.records[month]) db.records[month] = {};
@@ -1660,27 +1661,6 @@
         if (input) {
           const currentVal = parseLocalNumber(input.value);
           db.records[month][f.id] = currentVal;
-
-          // 💡 LOGIC บัญชีสภาพคล่องสูง (High Liquidity)
-          if (f.catId === 'high') {
-            const nameUpper = f.name.toUpperCase();
-            const symbolUpper = (f.symbol || '').toUpperCase();
-            
-            // เช็คว่าเป็น Youtrip, ตลาดเงิน, e-Savings หรือ ฝากประจำ หรือไม่
-            const isInvestmentCash = nameUpper.includes('YOUTRIP') || 
-                                     nameUpper.includes('ตลาดเงิน') || 
-                                     nameUpper.includes('ESAVING') || 
-                                     nameUpper.includes('ประจำ') || 
-                                     symbolUpper.includes('YOUTRIP');
-
-            if (isInvestmentCash) {
-              // 📈 Youtrip / ตลาดเงิน / e-Savings: ล็อกต้นทุนเดิมไว้ เพื่อคำนวณ FX Gain/Loss หรือ ดอกเบี้ย เป็นกำไรบนกราฟ
-              syncEsavingCostToTransaction(f.id, currentVal, month);
-            } else {
-              // 🔄 ออมทรัพย์ / เผื่อเรียก / เงินสดใช้จ่าย: Auto-Sync ต้นทุน = ยอดคงเหลือ (1:1)
-              syncCashCostToTransaction(f.id, currentVal, month);
-            }
-          }
         }
       });
       saveDB();
@@ -1698,59 +1678,6 @@
         if (showToastFlag) showToast('บันทึกอัตโนมัติแล้ว');
       }
       return true;
-    }
-
-    // 1. Auto-Sync ต้นทุนสำหรับ "ออมทรัพย์ใช้จ่ายหมุนเวียน/เผื่อเรียก" (1:1)
-    function syncCashCostToTransaction(fundId, amount, month) {
-      const txDate = `${month}-01`;
-      let tx = db.transactions.find(t => t.fundId === fundId && t.date.startsWith(month));
-
-      if (amount > 0) {
-        if (tx) {
-          tx.amount = amount;
-          tx.type = 'BUY';
-        } else {
-          db.transactions.push({
-            id: 'tx_auto_cash_' + fundId + '_' + month,
-            date: txDate,
-            fundId: fundId,
-            type: 'BUY',
-            amount: amount
-          });
-        }
-      } else if (tx) {
-        db.transactions = db.transactions.filter(t => t.id !== tx.id);
-      }
-    }
-
-    // 2. Sync ต้นทุนสำหรับ "Youtrip / ตลาดเงิน / e-Savings / ฝากประจำ" (ล็อกต้นทุนฝากเดิมไว้เพื่อสะสมดอกเบี้ย/กำไร FX)
-    function syncEsavingCostToTransaction(fundId, currentAmount, month) {
-      const txDate = `${month}-01`;
-      const sortedMonths = Object.keys(db.records).filter(m => m < month).sort();
-      let prevCost = 0;
-      
-      if (sortedMonths.length > 0) {
-        const prevMonth = sortedMonths[sortedMonths.length - 1];
-        prevCost = calculateCumulativeCost(fundId, prevMonth);
-      }
-
-      let tx = db.transactions.find(t => t.fundId === fundId && t.date.startsWith(month));
-      let targetCost = prevCost > 0 ? prevCost : currentAmount;
-
-      if (targetCost > 0) {
-        if (tx) {
-          tx.amount = targetCost;
-          tx.type = 'BUY';
-        } else {
-          db.transactions.push({
-            id: 'tx_auto_esave_' + fundId + '_' + month,
-            date: txDate,
-            fundId: fundId,
-            type: 'BUY',
-            amount: targetCost
-          });
-        }
-      }
     }
 
     function saveMonthlyData(ev) {
@@ -2766,7 +2693,7 @@
 
     // ================= BACKUP / RESTORE / EXPORT =================
     function backupToJson() {
-      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.7.0', exportedAt: new Date().toISOString(), data: db };
+      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v3.8.0', exportedAt: new Date().toISOString(), data: db };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
