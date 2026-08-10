@@ -771,24 +771,7 @@ function monthToTotalMonths(monthStr) {
   return year * 12 + month;
 }
 
-function findClosestMonth(targetMonthStr, availableMonths, maxDiffMonths = 6) {
-  if (!availableMonths || availableMonths.length === 0) return null;
-  
-  const targetVal = monthToTotalMonths(targetMonthStr);
-  let closestMonth = null;
-  let minDiff = Infinity;
-
-  availableMonths.forEach(m => {
-    const diff = Math.abs(monthToTotalMonths(m) - targetVal);
-    if (diff <= maxDiffMonths && diff < minDiff) {
-      minDiff = diff;
-      closestMonth = m;
-    }
-  });
-
-  return closestMonth;
-}
-
+// ฟังก์ชันคำนวณผลตอบแทนย้อนหลังฉบับแก้ไขสูตรถูกต้อง
 function calculatePeriodReturns(filterId, endMonthStr) {
   const allMonths = Object.keys(db.records).sort();
   if (!allMonths.includes(endMonthStr)) return null;
@@ -798,9 +781,14 @@ function calculatePeriodReturns(filterId, endMonthStr) {
   const endMV = getMarketValueByFilter(filterId, endMonthStr);
   const endCost = getCostBasisByFilter(filterId, endMonthStr);
 
-  const validMonthsForFund = allMonths.filter(m => {
+  if (endCost <= 0) return null;
+
+  // หาเดือนแรกสุดที่มีการลงทุนจริง
+  const inceptionMonth = allMonths.find(m => {
     return getMarketValueByFilter(filterId, m) > 0 || getCostBasisByFilter(filterId, m) > 0;
   });
+
+  if (!inceptionMonth) return null;
 
   const periods = [
     { key: '6m', name: 'ย้อนหลัง 6 เดือน', monthsBack: 6, isAnnualized: false },
@@ -814,42 +802,42 @@ function calculatePeriodReturns(filterId, endMonthStr) {
   periods.forEach(p => {
     const targetTotalMonths = (endYear * 12 + endMonth) - p.monthsBack;
     const targetYear = Math.floor((targetTotalMonths - 1) / 12);
-    const targetMonth = targetTotalMonths - (targetYear * 12);
-    const targetMonthStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
+    const targetM = targetTotalMonths - (targetYear * 12);
+    const targetMonthStr = `${targetYear}-${String(targetM).padStart(2, '0')}`;
 
-    const matchedMonth = findClosestMonth(targetMonthStr, validMonthsForFund, 6);
+    let startMonthToUse = targetMonthStr < inceptionMonth ? inceptionMonth : targetMonthStr;
 
-    if (!matchedMonth) {
-      results[p.key] = { returnPct: null, matchedMonth: null, isAnnualized: p.isAnnualized, label: p.name };
-    } else {
-      const startMV = getMarketValueByFilter(filterId, matchedMonth);
-      const startCost = getCostBasisByFilter(filterId, matchedMonth);
-
-      if (startCost <= 0 && startMV <= 0) {
-        results[p.key] = { returnPct: null, matchedMonth: null, isAnnualized: p.isAnnualized, label: p.name };
-      } else {
-        const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(matchedMonth);
-        
-        const netGainInPeriod = (endMV - endCost) - (startCost > 0 ? (startMV - startCost) : 0);
-        const addedCostInPeriod = endCost - startCost;
-        const baseCapital = startCost + addedCostInPeriod; 
-        
-        let diffPct = 0;
-        if (baseCapital > 0) {
-          diffPct = (netGainInPeriod / baseCapital) * 100;
-        }
-
-        let returnPct = 0;
-        if (p.isAnnualized && actualMonthsDiff > 0) {
-          const yearsDiff = actualMonthsDiff / 12;
-          returnPct = diffPct / yearsDiff; 
-        } else {
-          returnPct = diffPct;
-        }
-
-        results[p.key] = { returnPct, matchedMonth, actualMonthsDiff, isAnnualized: p.isAnnualized, label: p.name };
-      }
+    if (!allMonths.includes(startMonthToUse)) {
+      startMonthToUse = inceptionMonth;
     }
+
+    const startMV = getMarketValueByFilter(filterId, startMonthToUse);
+    const startCost = getCostBasisByFilter(filterId, startMonthToUse);
+
+    let returnPct = 0;
+    const netGain = endMV - endCost; 
+
+    if (startCost === 0 || startMonthToUse === inceptionMonth) {
+      returnPct = (netGain / endCost) * 100;
+    } else {
+      const addedCost = endCost - startCost;
+      const baseCapital = startCost + addedCost;
+      returnPct = baseCapital > 0 ? (netGain / baseCapital) * 100 : 0;
+    }
+
+    const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(startMonthToUse);
+    if (p.isAnnualized && actualMonthsDiff > 12) {
+      const yearsDiff = actualMonthsDiff / 12;
+      returnPct = returnPct / yearsDiff;
+    }
+
+    results[p.key] = {
+      returnPct: returnPct,
+      matchedMonth: startMonthToUse,
+      actualMonthsDiff: actualMonthsDiff,
+      isAnnualized: p.isAnnualized,
+      label: p.name
+    };
   });
 
   return results;
@@ -909,7 +897,7 @@ function renderIndividualChart() {
         <p class="text-xs font-bold text-slate-500 mb-1">เงินลงทุนสะสม (ต้นทุน)</p>
         <h4 class="text-lg font-black text-slate-800">฿${formatNumber(latestCost)}</h4>
       </div>
-      <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm text-center">
+      <div class="bg-white p-3.5 rounded-xl border border-slate-600 mb-1">
         <p class="text-xs font-bold text-slate-600 mb-1">ผลกำไรรวม (บาท)</p>
         <h4 class="text-lg font-black ${latestProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${latestProfit >= 0 ? '+' : ''}${formatNumber(latestProfit)}</h4>
       </div>

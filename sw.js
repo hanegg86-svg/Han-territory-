@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wealth-tracker-v3.5.1';
+const CACHE_NAME = 'wealth-tracker-v3.5.3';
 
 // รายการไฟล์ทั้งหมดที่ต้องการให้ Service Worker ทำการ Caching ไว้สำหรับ Offline Mode
 const ASSETS_TO_CACHE = [
