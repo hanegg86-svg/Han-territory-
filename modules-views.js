@@ -771,7 +771,7 @@ function monthToTotalMonths(monthStr) {
   return year * 12 + month;
 }
 
-// ฟังก์ชันคำนวณผลตอบแทนย้อนหลังฉบับแก้ไขสูตรถูกต้อง
+// ฟังก์ชันคำนวณผลตอบแทนย้อนหลัง (ปรับปรุง Logic N/A ล่าสุด)
 function calculatePeriodReturns(filterId, endMonthStr) {
   const allMonths = Object.keys(db.records).sort();
   if (!allMonths.includes(endMonthStr)) return null;
@@ -783,7 +783,7 @@ function calculatePeriodReturns(filterId, endMonthStr) {
 
   if (endCost <= 0) return null;
 
-  // หาเดือนแรกสุดที่มีการลงทุนจริง
+  // หาเดือนแรกสุดที่มีการบันทึกข้อมูลและมีมูลค่าจริงในระบบ
   const inceptionMonth = allMonths.find(m => {
     return getMarketValueByFilter(filterId, m) > 0 || getCostBasisByFilter(filterId, m) > 0;
   });
@@ -805,8 +805,21 @@ function calculatePeriodReturns(filterId, endMonthStr) {
     const targetM = targetTotalMonths - (targetYear * 12);
     const targetMonthStr = `${targetYear}-${String(targetM).padStart(2, '0')}`;
 
-    let startMonthToUse = targetMonthStr < inceptionMonth ? inceptionMonth : targetMonthStr;
+    // ถ้าเดือนย้อนหลังย้อนไปไกลกว่าเดือนแรกที่มีข้อมูล (inceptionMonth) 
+    // ให้ถือว่าไม่มีข้อมูลก่อนหน้านั้นเลย -> แสดง N/A
+    if (targetMonthStr < inceptionMonth) {
+      results[p.key] = {
+        returnPct: null,
+        matchedMonth: null,
+        actualMonthsDiff: 0,
+        isAnnualized: p.isAnnualized,
+        label: p.name
+      };
+      return;
+    }
 
+    // ถ้าช่วงเวลามีข้อมูลรองรับ (ตั้งแต่ inceptionMonth เป็นต้นมา) ให้ใช้ Logic เดิม
+    let startMonthToUse = targetMonthStr;
     if (!allMonths.includes(startMonthToUse)) {
       startMonthToUse = inceptionMonth;
     }
@@ -897,7 +910,7 @@ function renderIndividualChart() {
         <p class="text-xs font-bold text-slate-500 mb-1">เงินลงทุนสะสม (ต้นทุน)</p>
         <h4 class="text-lg font-black text-slate-800">฿${formatNumber(latestCost)}</h4>
       </div>
-      <div class="bg-white p-3.5 rounded-xl border border-slate-600 mb-1">
+      <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm text-center">
         <p class="text-xs font-bold text-slate-600 mb-1">ผลกำไรรวม (บาท)</p>
         <h4 class="text-lg font-black ${latestProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${latestProfit >= 0 ? '+' : ''}${formatNumber(latestProfit)}</h4>
       </div>
