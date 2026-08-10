@@ -771,76 +771,19 @@ function monthToTotalMonths(monthStr) {
   return year * 12 + month;
 }
 
-// Helper: แปลงสตริง YYYY-MM เป็น Date Object (ใช้วันที่ 1 ของเดือน)
-function parseYearMonthToDate(ymStr) {
-  const [y, m] = ymStr.split('-').map(Number);
-  return new Date(y, m - 1, 1);
-}
-
-// Helper: คำนวณ XIRR ด้วยวิธี Newton-Raphson Method
-function calculateXIRR(cashFlows) {
-  if (!cashFlows || cashFlows.length < 2) return null;
-  
-  let hasPositive = false;
-  let hasNegative = false;
-  cashFlows.forEach(cf => {
-    if (cf.amount > 0) hasPositive = true;
-    if (cf.amount < 0) hasNegative = true;
-  });
-  if (!hasPositive || !hasNegative) return null;
-
-  const t0 = cashFlows[0].date.getTime();
-
-  function xirrNPV(rate) {
-    let npv = 0;
-    for (let i = 0; i < cashFlows.length; i++) {
-      const days = (cashFlows[i].date.getTime() - t0) / (1000 * 60 * 60 * 24);
-      npv += cashFlows[i].amount / Math.pow(1 + rate, days / 365.25);
-    }
-    return npv;
-  }
-
-  function xirrDeriv(rate) {
-    let d = 0;
-    for (let i = 0; i < cashFlows.length; i++) {
-      const days = (cashFlows[i].date.getTime() - t0) / (1000 * 60 * 60 * 24);
-      const yearFrac = days / 365.25;
-      d -= yearFrac * cashFlows[i].amount / Math.pow(1 + rate, yearFrac + 1);
-    }
-    return d;
-  }
-
-  let rate = 0.1; // ค่าเริ่มต้นสมมติที่ 10%
-  const maxIter = 100;
-  const tol = 1e-6;
-
-  for (let iter = 0; iter < maxIter; iter++) {
-    const npv = xirrNPV(rate);
-    if (Math.abs(npv) < tol) return rate * 100;
-    
-    const deriv = xirrDeriv(rate);
-    if (Math.abs(deriv) < tol) break;
-
-    const newRate = rate - npv / deriv;
-    if (isNaN(newRate) || !isFinite(newRate)) break;
-    
-    if (Math.abs(newRate - rate) < tol) return newRate * 100;
-    rate = newRate;
-  }
-
-  return rate * 100;
-}
-
-// ฟังก์ชันคำนวณผลตอบแทนย้อนหลังด้วยวิธี XIRR
+// ฟังก์ชันคำนวณผลตอบแทนย้อนหลัง (สูตร: กำไรปัจจุบัน - กำไรในอดีต / ต้นทุนเฉลี่ยของช่วงเวลา)
 function calculatePeriodReturns(filterId, endMonthStr) {
   const allMonths = Object.keys(db.records).sort();
   if (!allMonths.includes(endMonthStr)) return null;
 
   const [endYear, endMonth] = endMonthStr.split('-').map(Number);
+  
+  // ปลายทาง (End)
   const endMV = getMarketValueByFilter(filterId, endMonthStr);
   const endCost = getCostBasisByFilter(filterId, endMonthStr);
+  const endProfit = endMV - endCost;
 
-  if (endMV <= 0 && endCost <= 0) return null;
+  if (endCost <= 0) return null;
 
   const inceptionMonth = allMonths.find(m => {
     return getMarketValueByFilter(filterId, m) > 0 || getCostBasisByFilter(filterId, m) > 0;
@@ -870,75 +813,36 @@ function calculatePeriodReturns(filterId, endMonthStr) {
     }
 
     let startMonthToUse = allMonths.filter(m => m <= targetMonthStr).pop() || inceptionMonth;
+    
+    // ต้นทาง (Start)
     const startMV = getMarketValueByFilter(filterId, startMonthToUse);
+    const startCost = getCostBasisByFilter(filterId, startMonthToUse);
+    const startProfit = startMV - startCost;
 
-    if (startMV <= 0) {
+    // 1. ผลกำไรที่ต่างกันในช่วงเวลา = กำไรปลายทาง - กำไรต้นทาง
+    const profitDiff = endProfit - startProfit;
+
+    // 2. ต้นทุนเฉลี่ยของช่วงเวลา = (ต้นทุนต้นทาง + ต้นทุนปลายทาง) / 2
+    const avgCost = (startCost + endCost) / 2;
+
+    if (avgCost <= 0) {
       results[p.key] = { returnPct: null, matchedMonth: null, actualMonthsDiff: 0, isAnnualized: p.isAnnualized, label: p.name };
       return;
     }
 
-    // 1. สร้าง Cash Flow สำหรับคำนวณ XIRR
-    const cashFlows = [];
-
-    // เงินต้นจุดเริ่มต้น (Start Market Value) -> เป็นค่าลบ (-)
-    cashFlows.push({
-      date: parseYearMonthToDate(startMonthToUse),
-      amount: -startMV
-    });
-
-    // ดึงประวัติธุรกรรมระหว่างช่วงเวลา startMonthToUse ถึง endMonthStr
-    const sortedTx = [...db.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
-    sortedTx.forEach(t => {
-      const txMonth = t.date.substring(0, 7);
-      if (txMonth > startMonthToUse && txMonth <= endMonthStr) {
-        let isMatch = false;
-
-        if (filterId === 'ALL_PORTFOLIO') {
-          isMatch = true;
-        } else if (filterId.startsWith('CAT_')) {
-          const catId = filterId.replace('CAT_', '');
-          const fund = db.funds.find(f => f.id === t.fundId);
-          if (fund && fund.catId === catId) isMatch = true;
-        } else if (filterId.startsWith('SUBCAT_')) {
-          const subName = filterId.replace('SUBCAT_', '');
-          const fund = db.funds.find(f => f.id === t.fundId);
-          if (fund && fund.subCategories) {
-            const subMatch = fund.subCategories.find(s => s.name.trim() === subName);
-            if (subMatch) isMatch = true;
-          }
-        } else if (t.fundId === filterId) {
-          isMatch = true;
-        }
-
-        if (isMatch) {
-          // BUY = เงินไหลเข้ากองทุน (-), SELL = เงินถอนออก (+)
-          const cfAmount = t.type === 'BUY' ? -t.amount : t.amount;
-          cashFlows.push({
-            date: new Date(t.date),
-            amount: cfAmount
-          });
-        }
-      }
-    });
-
-    // มูลค่าพอร์ต ณ วันปลายทาง (End Market Value) -> เป็นค่าบวก (+)
-    cashFlows.push({
-      date: parseYearMonthToDate(endMonthStr),
-      amount: endMV
-    });
-
-    // 2. คำนวณ XIRR (%)
-    let xirrVal = calculateXIRR(cashFlows);
+    // 3. ผลตอบแทน = (กำไรช่วงเวลา / ต้นทุนเฉลี่ย) * 100
+    let returnPct = (profitDiff / avgCost) * 100;
 
     const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(startMonthToUse);
 
-    // ปรับสเกล XIRR สำหรับช่วงเวลาสั้นกว่า 1 ปี (เช่น 6 เดือน) หากต้องการแสดงเป็น Simple Absolute Return ในช่วงสั้น
-    if (!p.isAnnualized && actualMonthsDiff < 12 && xirrVal !== null) {
-      xirrVal = xirrVal * (actualMonthsDiff / 12);
+    // 4. หากเป็นรายการย้อนหลังเกิน 1 ปี (และเซตให้ annualized) ให้หารด้วยจำนวนปี
+    if (p.isAnnualized && actualMonthsDiff > 12) {
+      const yearsDiff = actualMonthsDiff / 12;
+      returnPct = returnPct / yearsDiff;
     }
 
     results[p.key] = {
-      returnPct: xirrVal,
+      returnPct: returnPct,
       matchedMonth: startMonthToUse,
       actualMonthsDiff: actualMonthsDiff,
       isAnnualized: p.isAnnualized,
@@ -1028,12 +932,12 @@ function renderIndividualChart() {
           const isPos = item.returnPct >= 0;
           valText = `${isPos ? '+' : ''}${item.returnPct.toFixed(2)}%`;
           colorClass = isPos ? 'text-emerald-600' : 'text-rose-600';
-          noteText = `XIRR เทียบข้อมูล ณ ${item.matchedMonth}`;
+          noteText = `เทียบข้อมูล ณ ${item.matchedMonth}`;
         }
 
         periodContainer.innerHTML += `
           <div class="bg-slate-50/80 p-3 rounded-xl border border-slate-200 shadow-sm text-center">
-            <p class="text-[11px] font-bold text-slate-600 mb-0.5">${item.label} ${item.isAnnualized ? '<span class="text-[9px] text-blue-600 font-normal">(XIRR ต่อปี)</span>' : ''}</p>
+            <p class="text-[11px] font-bold text-slate-600 mb-0.5">${item.label} ${item.isAnnualized ? '<span class="text-[9px] text-blue-600 font-normal">(ต่อปี)</span>' : ''}</p>
             <h4 class="text-base font-black ${colorClass}">${valText}</h4>
             <p class="text-[9px] text-slate-400 mt-0.5 truncate">${noteText}</p>
           </div>
