@@ -1544,16 +1544,18 @@
             Extract financial data from this portfolio / bond / mutual fund screenshot image.
             
             RULES:
-            1. Look for Symbol / Ticker / Fund Name (e.g. GULF300A, SGP292A, K-SF-SSF).
-            2. Look for Market Price, NAV, Market Value, or Unit Price under headers like "Market", "Cost", "NAV", "Price".
-            3. If you see "Market" value or price (e.g. 1010.10 or 999.04), return it as "price".
+            1. Look for Symbol / Ticker / Fund Name (e.g. GULF300A, SGP292A, K-SF-SSF, SCBKEQTG).
+            2. Look for Price, NAV, or Market Value. This could be under headers like "Market", "Cost", "NAV" OR it could be a standalone decimal number next to the symbol (e.g. 11.9897 or 22.1636).
+            3. Return the value as "price".
             4. For Cash, set "symbol": "CASH", "isCash": true, and "shares": amount.
 
             Return ONLY a clean JSON array without markdown formatting.
             Example:
             [
               {"symbol": "GULF300A", "price": 1010.10},
-              {"symbol": "SGP292A", "price": 999.04}
+              {"symbol": "SGP292A", "price": 999.04},
+              {"symbol": "K-SF-SSF", "price": 11.9897},
+              {"symbol": "SCBKEQTG", "price": 22.1636}
             ]
           `;
 
@@ -1593,7 +1595,8 @@
                   const cleanSymbol = fSymbol.replace(/[^A-Z0-9]/g, '');
                   
                   const isMatched = (fSymbol === scannedCode || fName === scannedCode || 
-                                     cleanSymbol.startsWith(cleanScanned) || cleanScanned.startsWith(cleanSymbol));
+                                     (cleanSymbol !== '' && cleanScanned !== '' && 
+                                     (cleanSymbol.startsWith(cleanScanned) || cleanScanned.startsWith(cleanSymbol))));
 
                   if (isMatched && !isNaN(scannedPrice) && !isCashItem) {
                     const navEl = document.getElementById(`entry-nav-${fund.id}`);
