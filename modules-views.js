@@ -44,8 +44,10 @@ function renderSetupTab() {
   if(!container) return;
   container.innerHTML = '';
 
+  if (!db || !db.categories) return;
+
   Object.values(db.categories).forEach(cat => {
-    const catFunds = db.funds.filter(f => f.catId === cat.id);
+    const catFunds = (db.funds || []).filter(f => f.catId === cat.id);
     let html = `<div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
         <h3 class="font-bold text-${cat.color}-600 mb-3 border-b border-slate-100 pb-2">${cat.name}</h3>
         <div class="space-y-4">`;
@@ -67,13 +69,13 @@ function renderSetupTab() {
 
           <div class="pt-1 border-t border-slate-200/60">
             <div class="flex flex-wrap gap-1.5 items-center">
-              ${f.subCategories.map(sub => `
+              ${(f.subCategories || []).map(sub => `
                 <span class="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">
                   ${sub.name} (${sub.weight}%)
                   <button onclick="deleteSubCategory('${f.id}', '${sub.id}')" class="ml-1 text-blue-400 hover:text-blue-600"><i class="fa-solid fa-xmark"></i></button>
                 </span>
               `).join('')}
-              ${f.subCategories.length < 4 ? `
+              ${(!f.subCategories || f.subCategories.length < 4) ? `
                 <button onclick="addSubCategory('${f.id}')" class="text-[10px] text-blue-600 hover:underline font-bold bg-white px-2 py-0.5 border border-blue-200 rounded">
                   <i class="fa-solid fa-plus mr-0.5"></i>เพิ่มประเภทย่อย
                 </button>
@@ -86,7 +88,7 @@ function renderSetupTab() {
     container.innerHTML += html;
   });
 
-  updateStorageSizeDisplay();
+  if (typeof updateStorageSizeDisplay === 'function') updateStorageSizeDisplay();
 }
 
 function addNewFund() {
@@ -99,6 +101,7 @@ function addNewFund() {
   const nameVal = nameInput.value.trim();
   const symbolVal = symbolInput && symbolInput.value.trim() !== '' ? symbolInput.value.trim().toUpperCase() : nameVal.toUpperCase();
 
+  if (!db.funds) db.funds = [];
   db.funds.push({
     id: generateId(),
     name: nameVal,
@@ -116,7 +119,7 @@ function addNewFund() {
 }
 
 function updateFundSymbol(id, newSymbol) {
-  const fund = db.funds.find(f => f.id === id);
+  const fund = (db.funds || []).find(f => f.id === id);
   if (fund) { 
     fund.symbol = newSymbol.trim().toUpperCase(); 
     saveDB(); 
@@ -125,13 +128,14 @@ function updateFundSymbol(id, newSymbol) {
 }
 
 function updateFundName(id, newName) {
-  const fund = db.funds.find(f => f.id === id);
+  const fund = (db.funds || []).find(f => f.id === id);
   if (fund && newName.trim() !== '') { fund.name = newName.trim(); saveDB(); }
 }
 
 function addSubCategory(fundId) {
-  const fund = db.funds.find(f => f.id === fundId);
+  const fund = (db.funds || []).find(f => f.id === fundId);
   if (!fund) return;
+  if (!fund.subCategories) fund.subCategories = [];
   if (fund.subCategories.length >= 4) return alert('จำกัดสูงสุด 4 ประเภทต่อกองทุนผสมครับ');
   
   const name = prompt('กรอกชื่อประเภทย่อย (เช่น ทอง, หุ้นต่างประเทศ, เงินสด):');
@@ -149,8 +153,8 @@ function addSubCategory(fundId) {
 }
 
 function deleteSubCategory(fundId, subId) {
-  const fund = db.funds.find(f => f.id === fundId);
-  if (fund) {
+  const fund = (db.funds || []).find(f => f.id === fundId);
+  if (fund && fund.subCategories) {
     fund.subCategories = fund.subCategories.filter(s => s.id !== subId);
     saveDB();
     renderSetupTab();
@@ -159,9 +163,11 @@ function deleteSubCategory(fundId, subId) {
 
 function deleteFund(id) {
   if (confirm('หากลบกองทุนนี้ ประวัติย้อนหลังจะถูกลบด้วย ยืนยันหรือไม่?')) {
-    db.funds = db.funds.filter(f => f.id !== id);
-    Object.keys(db.records).forEach(month => { if (db.records[month][id] !== undefined) delete db.records[month][id]; });
-    db.transactions = db.transactions.filter(t => t.fundId !== id); 
+    db.funds = (db.funds || []).filter(f => f.id !== id);
+    if (db.records) {
+      Object.keys(db.records).forEach(month => { if (db.records[month][id] !== undefined) delete db.records[month][id]; });
+    }
+    db.transactions = (db.transactions || []).filter(t => t.fundId !== id); 
     saveDB(); renderSetupTab();
   }
 }
@@ -191,6 +197,7 @@ function changeEntryMonth() {
 }
 
 function getDisplayDataForMonth(month) {
+  if (!db || !db.records) return {};
   if (db.records[month]) { renderUsingCarryForward = false; return db.records[month]; }
   const prevMonths = Object.keys(db.records).filter(m => m < month).sort();
   if (prevMonths.length > 0) {
@@ -221,7 +228,7 @@ function autoCalcMonthlyFund(fundId, changedField) {
     }
   }
 
-  const fund = db.funds.find(f => f.id === fundId);
+  const fund = (db.funds || []).find(f => f.id === fundId);
   if (fund && units > 0) {
     fund.units = units;
     saveDB();
@@ -240,7 +247,8 @@ function renderEntryForm() {
   if(!container) return;
   container.innerHTML = '';
   
-  if (db.funds.length === 0) {
+  const fundsList = db.funds || [];
+  if (fundsList.length === 0) {
     if(warning) warning.classList.add('hidden');
     if(summaryPanel) summaryPanel.classList.add('hidden');
     container.innerHTML = `<div class="text-center py-10 text-slate-400 bg-white rounded-2xl border border-slate-200">กรุณาเพิ่มชื่อบัญชี/กองทุนในแท็บตั้งค่าก่อน</div>`;
@@ -250,7 +258,7 @@ function renderEntryForm() {
 
   const currentData = getDisplayDataForMonth(month);
   
-  const sortedMonths = Object.keys(db.records).filter(m => m < month).sort();
+  const sortedMonths = Object.keys(db.records || {}).filter(m => m < month).sort();
   let prevMonthData = {};
   if (sortedMonths.length > 0) {
     prevMonthData = db.records[sortedMonths[sortedMonths.length - 1]] || {};
@@ -261,8 +269,10 @@ function renderEntryForm() {
     else warning.classList.add('hidden');
   }
 
+  if (!db.categories) return;
+
   Object.values(db.categories).forEach(cat => {
-    const catFunds = db.funds.filter(f => f.catId === cat.id);
+    const catFunds = fundsList.filter(f => f.catId === cat.id);
     if (catFunds.length === 0) return;
     let html = `
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
@@ -346,7 +356,9 @@ function renderEntryForm() {
 function updateEntryTotals() {
   let total = 0;
   const catTotals = { high: 0, med: 0, low: 0, ins: 0 };
-  db.funds.forEach(f => {
+  const fundsList = db.funds || [];
+
+  fundsList.forEach(f => {
     const el = document.getElementById(`entry-${f.id}`);
     const val = el ? parseLocalNumber(el.value) : 0;
     if (catTotals[f.catId] !== undefined) catTotals[f.catId] += val;
@@ -361,14 +373,14 @@ function updateEntryTotals() {
   });
 
   const currentMonth = activeEntryMonth || getCurrentMonth();
-  const sortedMonths = Object.keys(db.records).filter(m => m < currentMonth).sort();
+  const sortedMonths = Object.keys(db.records || {}).filter(m => m < currentMonth).sort();
   let prevTotal = 0;
   let prevData = {};
   
   if (sortedMonths.length > 0) {
     const prevMonth = sortedMonths[sortedMonths.length - 1];
     prevData = db.records[prevMonth] || {};
-    db.funds.forEach(f => {
+    fundsList.forEach(f => {
       prevTotal += (prevData[f.id] || 0);
     });
   }
@@ -387,7 +399,7 @@ function updateEntryTotals() {
     }
   }
 
-  db.funds.forEach(f => {
+  fundsList.forEach(f => {
     const el = document.getElementById(`entry-${f.id}`);
     const currentAmount = el ? parseLocalNumber(el.value) : 0;
     const prevAmount = prevData[f.id] !== undefined ? prevData[f.id] : 0;
@@ -429,10 +441,12 @@ function scheduleAutoSave(fundId, valStr) {
 }
 
 function saveEntryMonth(month, { showToastFlag = true, silent = false } = {}) {
-  if (!month || db.funds.length === 0) return false;
+  const fundsList = db.funds || [];
+  if (!month || fundsList.length === 0) return false;
+  if (!db.records) db.records = {};
   if (!db.records[month]) db.records[month] = {};
   
-  db.funds.forEach(f => {
+  fundsList.forEach(f => {
     const input = document.getElementById(`entry-${f.id}`);
     if (input) db.records[month][f.id] = parseLocalNumber(input.value);
   });
@@ -474,11 +488,13 @@ function saveMonthlyData(ev) {
 
 // ================= COMPARE MODULE =================
 function getAvailableYears() {
+  if (!db || !db.records) return [];
   const years = new Set(Object.keys(db.records).map(m => m.split('-')[0]));
   return Array.from(years).sort().reverse();
 }
 
 function getLatestMonthDataForYear(year) {
+  if (!db || !db.records) return null;
   const monthsInYear = Object.keys(db.records).filter(m => m.startsWith(year)).sort();
   if (monthsInYear.length === 0) return null;
   const latestMonth = monthsInYear[monthsInYear.length - 1];
@@ -486,7 +502,7 @@ function getLatestMonthDataForYear(year) {
 }
 
 function calculateCategoryTotal(dataObj, catId) {
-  if (!dataObj) return 0;
+  if (!dataObj || !db || !db.funds) return 0;
   const fundsInCat = db.funds.filter(f => f.catId === catId).map(f => f.id);
   return fundsInCat.reduce((sum, fId) => sum + (dataObj[fId] || 0), 0);
 }
@@ -511,7 +527,7 @@ function initCompareTab() {
   }
   renderCompareDashboard();
 
-  const allMonths = Object.keys(db.records).sort();
+  const allMonths = Object.keys(db.records || {}).sort();
   const m1Input = document.getElementById('mcomp-month1');
   const m2Input = document.getElementById('mcomp-month2');
   
@@ -543,12 +559,14 @@ function renderCompareDashboard() {
   let total1 = 0, total2 = 0;
   const catTotals = { high: [0, 0], med: [0, 0], low: [0, 0], ins: [0, 0] };
 
-  Object.keys(db.categories).forEach(catId => {
-    const val1 = calculateCategoryTotal(data1 ? data1.data : null, catId);
-    const val2 = calculateCategoryTotal(data2 ? data2.data : null, catId);
-    catTotals[catId] = [val1, val2];
-    total1 += val1; total2 += val2;
-  });
+  if (db && db.categories) {
+    Object.keys(db.categories).forEach(catId => {
+      const val1 = calculateCategoryTotal(data1 ? data1.data : null, catId);
+      const val2 = calculateCategoryTotal(data2 ? data2.data : null, catId);
+      catTotals[catId] = [val1, val2];
+      total1 += val1; total2 += val2;
+    });
+  }
 
   const totalValEl = document.getElementById('comp-total-val');
   if(totalValEl) totalValEl.innerText = '฿' + formatNumber(total2);
@@ -560,19 +578,21 @@ function renderCompareDashboard() {
   const summaryTextEl = document.getElementById('comp-summary-text');
   if(summaryTextEl) summaryTextEl.innerText = `เทียบข้อมูล ณ ${monthText2} กับ ${monthText1}`;
 
-  Object.keys(db.categories).forEach(catId => {
-    const catTextEl = document.getElementById(`comp-cat-${catId}`);
-    if(catTextEl) catTextEl.innerText = '฿' + formatNumber(catTotals[catId][1]);
-    
-    const diff = catTotals[catId][1] - catTotals[catId][0];
-    const pct = catTotals[catId][0] !== 0 ? (diff / catTotals[catId][0]) * 100 : 0;
-    const isPos = diff >= 0;
-    const el = document.getElementById(`comp-diff-${catId}`);
-    if(el) {
-      el.innerText = `${isPos ? '+' : ''}${formatNumber(diff)} บาท (${pct.toFixed(2)}%)`;
-      el.className = `text-xs mt-1 font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`;
-    }
-  });
+  if (db && db.categories) {
+    Object.keys(db.categories).forEach(catId => {
+      const catTextEl = document.getElementById(`comp-cat-${catId}`);
+      if(catTextEl) catTextEl.innerText = '฿' + formatNumber(catTotals[catId][1]);
+      
+      const diff = catTotals[catId][1] - catTotals[catId][0];
+      const pct = catTotals[catId][0] !== 0 ? (diff / catTotals[catId][0]) * 100 : 0;
+      const isPos = diff >= 0;
+      const el = document.getElementById(`comp-diff-${catId}`);
+      if(el) {
+        el.innerText = `${isPos ? '+' : ''}${formatNumber(diff)} บาท (${pct.toFixed(2)}%)`;
+        el.className = `text-xs mt-1 font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`;
+      }
+    });
+  }
 }
 
 function renderMonthCompareDashboard() {
@@ -583,18 +603,21 @@ function renderMonthCompareDashboard() {
   const m2 = m2El.value;
   if (!m1 || !m2) return;
   
-  const data1 = db.records[m1] ? { month: m1, data: db.records[m1] } : null;
-  const data2 = db.records[m2] ? { month: m2, data: db.records[m2] } : null;
+  const records = db.records || {};
+  const data1 = records[m1] ? { month: m1, data: records[m1] } : null;
+  const data2 = records[m2] ? { month: m2, data: records[m2] } : null;
 
   let total1 = 0, total2 = 0;
   const catTotals = { high: [0, 0], med: [0, 0], low: [0, 0], ins: [0, 0] };
 
-  Object.keys(db.categories).forEach(catId => {
-    const val1 = calculateCategoryTotal(data1 ? data1.data : null, catId);
-    const val2 = calculateCategoryTotal(data2 ? data2.data : null, catId);
-    catTotals[catId] = [val1, val2];
-    total1 += val1; total2 += val2;
-  });
+  if (db && db.categories) {
+    Object.keys(db.categories).forEach(catId => {
+      const val1 = calculateCategoryTotal(data1 ? data1.data : null, catId);
+      const val2 = calculateCategoryTotal(data2 ? data2.data : null, catId);
+      catTotals[catId] = [val1, val2];
+      total1 += val1; total2 += val2;
+    });
+  }
 
   const totalValEl = document.getElementById('mcomp-total-val');
   if(totalValEl) totalValEl.innerText = '฿' + formatNumber(total2);
@@ -606,19 +629,21 @@ function renderMonthCompareDashboard() {
   const summaryTextEl = document.getElementById('mcomp-summary-text');
   if(summaryTextEl) summaryTextEl.innerText = `เทียบข้อมูล ณ ${monthText2} กับ ${monthText1}`;
 
-  Object.keys(db.categories).forEach(catId => {
-    const catTextEl = document.getElementById(`mcomp-cat-${catId}`);
-    if(catTextEl) catTextEl.innerText = '฿' + formatNumber(catTotals[catId][1]);
-    
-    const diff = catTotals[catId][1] - catTotals[catId][0];
-    const pct = catTotals[catId][0] !== 0 ? (diff / catTotals[catId][0]) * 100 : 0;
-    const isPos = diff >= 0;
-    const el = document.getElementById(`mcomp-diff-${catId}`);
-    if(el) {
-      el.innerText = `${isPos ? '+' : ''}${formatNumber(diff)} บาท (${pct.toFixed(2)}%)`;
-      el.className = `text-xs mt-1 font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`;
-    }
-  });
+  if (db && db.categories) {
+    Object.keys(db.categories).forEach(catId => {
+      const catTextEl = document.getElementById(`mcomp-cat-${catId}`);
+      if(catTextEl) catTextEl.innerText = '฿' + formatNumber(catTotals[catId][1]);
+      
+      const diff = catTotals[catId][1] - catTotals[catId][0];
+      const pct = catTotals[catId][0] !== 0 ? (diff / catTotals[catId][0]) * 100 : 0;
+      const isPos = diff >= 0;
+      const el = document.getElementById(`mcomp-diff-${catId}`);
+      if(el) {
+        el.innerText = `${isPos ? '+' : ''}${formatNumber(diff)} บาท (${pct.toFixed(2)}%)`;
+        el.className = `text-xs mt-1 font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`;
+      }
+    });
+  }
 }
 
 function updateDiffElement(diffId, pctId, current, base, styleForDarkBg = false) {
@@ -642,7 +667,8 @@ function updateDiffElement(diffId, pctId, current, base, styleForDarkBg = false)
 // ================= CHARTS MODULE =================
 function getAllUniqueSubCategories() {
   let subs = new Set();
-  db.funds.forEach(f => {
+  const fundsList = db.funds || [];
+  fundsList.forEach(f => {
     if(f.subCategories && f.subCategories.length > 0) {
       f.subCategories.forEach(s => subs.add(s.name.trim()));
     }
@@ -665,14 +691,16 @@ function isAutoCostSavingsFund(fund) {
 }
 
 function calculateCumulativeCost(fundId, targetMonth) {
-  const fund = db.funds.find(f => f.id === fundId);
+  const fund = (db.funds || []).find(f => f.id === fundId);
   
   if (fund && isAutoCostSavingsFund(fund)) {
-    return db.records[targetMonth] ? (db.records[targetMonth][fundId] || 0) : 0;
+    return (db.records && db.records[targetMonth]) ? (db.records[targetMonth][fundId] || 0) : 0;
   }
 
   let cumulativeCost = 0;
-  db.transactions.forEach(t => {
+  const rawTx = db.transactions || [];
+  rawTx.forEach(t => {
+    if (!t || !t.date) return;
     const txMonth = t.date.substring(0, 7); 
     if (t.fundId === fundId && txMonth <= targetMonth) {
       if (t.type === 'BUY') cumulativeCost += t.amount;
@@ -700,11 +728,12 @@ function initChartsTab() {
     });
   }
 
-  db.funds.forEach(f => {
+  const fundsList = db.funds || [];
+  fundsList.forEach(f => {
     select.innerHTML += `<option value="${f.id}">กองทุน: ${f.name} (${f.symbol || ''})</option>`;
   });
 
-  const months = Object.keys(db.records).sort();
+  const months = Object.keys(db.records || {}).sort();
   const startEl = document.getElementById('chart-start');
   const endEl = document.getElementById('chart-end');
   if(startEl && endEl) {
@@ -721,19 +750,21 @@ function initChartsTab() {
 }
 
 function getMarketValueByFilter(filterVal, monthStr) {
+  if (!db || !db.records) return 0;
   const record = db.records[monthStr];
   if (!record) return 0;
+  const fundsList = db.funds || [];
   
   if (filterVal === 'ALL_PORTFOLIO') {
-    return db.funds.reduce((sum, f) => sum + (record[f.id] || 0), 0);
+    return fundsList.reduce((sum, f) => sum + (record[f.id] || 0), 0);
   } else if (filterVal.startsWith('CAT_')) {
     const catId = filterVal.replace('CAT_', '');
-    const targetFunds = db.funds.filter(f => f.catId === catId);
+    const targetFunds = fundsList.filter(f => f.catId === catId);
     return targetFunds.reduce((sum, f) => sum + (record[f.id] || 0), 0);
   } else if (filterVal.startsWith('SUBCAT_')) {
     const subName = filterVal.replace('SUBCAT_', '');
     let totalSubVal = 0;
-    db.funds.forEach(f => {
+    fundsList.forEach(f => {
       const fundVal = record[f.id] || 0;
       if (f.subCategories && f.subCategories.length > 0) {
         const subMatch = f.subCategories.find(s => s.name.trim() === subName);
@@ -749,16 +780,17 @@ function getMarketValueByFilter(filterVal, monthStr) {
 }
 
 function getCostBasisByFilter(filterVal, monthStr) {
+  const fundsList = db.funds || [];
   if (filterVal === 'ALL_PORTFOLIO') {
-    return db.funds.reduce((sum, f) => sum + calculateCumulativeCost(f.id, monthStr), 0);
+    return fundsList.reduce((sum, f) => sum + calculateCumulativeCost(f.id, monthStr), 0);
   } else if (filterVal.startsWith('CAT_')) {
     const catId = filterVal.replace('CAT_', '');
-    const targetFunds = db.funds.filter(f => f.catId === catId);
+    const targetFunds = fundsList.filter(f => f.catId === catId);
     return targetFunds.reduce((sum, f) => sum + calculateCumulativeCost(f.id, monthStr), 0);
   } else if (filterVal.startsWith('SUBCAT_')) {
     const subName = filterVal.replace('SUBCAT_', '');
     let totalSubCost = 0;
-    db.funds.forEach(f => {
+    fundsList.forEach(f => {
       const fundCost = calculateCumulativeCost(f.id, monthStr);
       if (f.subCategories && f.subCategories.length > 0) {
         const subMatch = f.subCategories.find(s => s.name.trim() === subName);
@@ -779,10 +811,12 @@ function monthToTotalMonths(monthStr) {
   return year * 12 + month;
 }
 
-// ฟังก์ชันคำนวณผลตอบแทนย้อนหลังด้วยวิธี Modified Dietz Method
+// ฟังก์ชันคำนวณผลตอบแทนย้อนหลังด้วยวิธี Modified Dietz Method (ปลอดภัย 100%)
 function calculatePeriodReturns(filterId, endMonthStr) {
+  if (!db || !db.records) return null;
+
   const allMonths = Object.keys(db.records).sort();
-  if (!allMonths.includes(endMonthStr)) return null;
+  if (allMonths.length === 0 || !allMonths.includes(endMonthStr)) return null;
 
   const [endYear, endMonth] = endMonthStr.split('-').map(Number);
   const endMV = getMarketValueByFilter(filterId, endMonthStr);
@@ -828,8 +862,11 @@ function calculatePeriodReturns(filterId, endMonthStr) {
     let netCashFlow = 0;
     let weightedCashFlow = 0;
 
-    const sortedTx = [...db.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const rawTx = (db && Array.isArray(db.transactions)) ? db.transactions : [];
+    const sortedTx = [...rawTx].sort((a, b) => new Date(a.date) - new Date(b.date));
+
     sortedTx.forEach(t => {
+      if (!t || !t.date) return;
       const txMonth = t.date.substring(0, 7);
       if (txMonth > startMonthToUse && txMonth <= endMonthStr) {
         let isMatch = false;
@@ -838,11 +875,11 @@ function calculatePeriodReturns(filterId, endMonthStr) {
           isMatch = true;
         } else if (filterId.startsWith('CAT_')) {
           const catId = filterId.replace('CAT_', '');
-          const fund = db.funds.find(f => f.id === t.fundId);
+          const fund = db.funds ? db.funds.find(f => f.id === t.fundId) : null;
           if (fund && fund.catId === catId) isMatch = true;
         } else if (filterId.startsWith('SUBCAT_')) {
           const subName = filterId.replace('SUBCAT_', '');
-          const fund = db.funds.find(f => f.id === t.fundId);
+          const fund = db.funds ? db.funds.find(f => f.id === t.fundId) : null;
           if (fund && fund.subCategories) {
             const subMatch = fund.subCategories.find(s => s.name.trim() === subName);
             if (subMatch) isMatch = true;
@@ -909,7 +946,7 @@ function renderIndividualChart() {
   if(periodContainer) periodContainer.innerHTML = '';
   if (!filterId || !startM || !endM) return;
 
-  const allMonths = Object.keys(db.records).sort();
+  const allMonths = Object.keys(db.records || {}).sort();
   const filteredMonths = allMonths.filter(m => m >= startM && m <= endM);
   
   const labels = filteredMonths;
@@ -989,7 +1026,7 @@ function renderIndividualChart() {
   const canvas = document.getElementById('individualChart');
   if(!canvas) return;
   const ctx = canvas.getContext('2d');
-  if (myChart) myChart.destroy();
+  if (typeof myChart !== 'undefined' && myChart) myChart.destroy();
 
   myChart = new Chart(ctx, {
     type: 'line',
@@ -1044,7 +1081,7 @@ function renderAnnualPerformanceTable(filterId) {
 
   for (let i = 0; i < 5; i++) {
     const year = currentYear - i;
-    const monthsInYear = Object.keys(db.records).filter(m => m.startsWith(year.toString())).sort();
+    const monthsInYear = Object.keys(db.records || {}).filter(m => m.startsWith(year.toString())).sort();
     
     if (monthsInYear.length === 0) {
       tbody.innerHTML += `
@@ -1077,7 +1114,7 @@ function renderAnnualPerformanceTable(filterId) {
 
 // ================= ALLOCATION MODULE =================
 function initAllocationTab() {
-  const sortedMonths = Object.keys(db.records).sort();
+  const sortedMonths = Object.keys(db.records || {}).sort();
   const monthSelect = document.getElementById('alloc-month-select');
   if(monthSelect) {
     monthSelect.innerHTML = '';
@@ -1092,7 +1129,8 @@ function initAllocationTab() {
   }
   
   let uniqueSubs = getAllUniqueSubCategories();
-  if(db.funds.some(f => !f.subCategories || f.subCategories.length === 0)) {
+  const fundsList = db.funds || [];
+  if(fundsList.some(f => !f.subCategories || f.subCategories.length === 0)) {
     uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
   }
 
@@ -1142,7 +1180,8 @@ function onSubCatFilterChange(cb) {
 
 function toggleSelectAllSubCats(isSelectAll) {
   let uniqueSubs = getAllUniqueSubCategories();
-  if(db.funds.some(f => !f.subCategories || f.subCategories.length === 0)) uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
+  const fundsList = db.funds || [];
+  if(fundsList.some(f => !f.subCategories || f.subCategories.length === 0)) uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
   
   selectedSubCatsForCompare = isSelectAll ? [...uniqueSubs] : [];
   renderSubCatCheckboxes(uniqueSubs);
@@ -1159,6 +1198,8 @@ function renderAllocationTargetInputs() {
     container.innerHTML = `<p class="text-xs text-rose-500 font-bold italic">⚠️ กรุณาเลือกประเภทย่อยอย่างน้อย 1 รายการที่ตัวกรองด้านบนเพื่อเปรียบเทียบ</p>`;
     return;
   }
+
+  if (!db.allocationSettings) db.allocationSettings = {};
 
   selectedSubCatsForCompare.forEach((subName, index) => {
     let savedWeight = db.allocationSettings[subName];
@@ -1180,12 +1221,14 @@ function addNewSubCatTargetPrompt() {
   const name = prompt('ป้อนชื่อประเภทย่อยใหม่ที่ต้องการกำหนดเป้าหมายล่วงหน้า:');
   if(!name || name.trim() === '') return;
   const subName = name.trim();
+  if (!db.allocationSettings) db.allocationSettings = {};
   db.allocationSettings[subName] = 0;
   if(!selectedSubCatsForCompare.includes(subName)) selectedSubCatsForCompare.push(subName);
   saveDB();
   
   let uniqueSubs = getAllUniqueSubCategories();
-  if(db.funds.some(f => !f.subCategories || f.subCategories.length === 0)) uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
+  const fundsList = db.funds || [];
+  if(fundsList.some(f => !f.subCategories || f.subCategories.length === 0)) uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
   if(!uniqueSubs.includes(subName)) uniqueSubs.push(subName);
 
   renderSubCatCheckboxes(uniqueSubs);
@@ -1206,6 +1249,7 @@ function calculateAllocation(shouldSaveState = false) {
   });
 
   if (shouldSaveState) {
+    if (!db.allocationSettings) db.allocationSettings = {};
     inputs.forEach(input => {
       const subName = input.getAttribute('data-subname');
       db.allocationSettings[subName] = parseFloat(input.value) || 0;
@@ -1233,9 +1277,12 @@ function calculateAllocation(shouldSaveState = false) {
   let totalWealthInGroup = 0;
   let currentSubTotals = {};
 
-  if (db.records[targetMonth]) {
-    db.funds.forEach(f => {
-      const fundVal = db.records[targetMonth][f.id] || 0;
+  const records = db.records || {};
+  const fundsList = db.funds || [];
+
+  if (records[targetMonth]) {
+    fundsList.forEach(f => {
+      const fundVal = records[targetMonth][f.id] || 0;
 
       if(f.subCategories && f.subCategories.length > 0) {
         f.subCategories.forEach(sub => {
@@ -1315,7 +1362,7 @@ function calculateAllocation(shouldSaveState = false) {
   const donutCanvas = document.getElementById('allocationChart');
   if(donutCanvas) {
     const ctxDonut = donutCanvas.getContext('2d');
-    if (allocChart) allocChart.destroy();
+    if (typeof allocChart !== 'undefined' && allocChart) allocChart.destroy();
     
     const donutLabels = selectedSubCatsForCompare;
     const actualData = selectedSubCatsForCompare.map(sub => totalWealthInGroup > 0 ? ((currentSubTotals[sub] || 0) / totalWealthInGroup) * 100 : 0);
@@ -1358,7 +1405,7 @@ function calculateAllocation(shouldSaveState = false) {
     });
   }
 
-  const sortedMonths = Object.keys(db.records).sort();
+  const sortedMonths = Object.keys(records).sort();
   renderPortfolioTrendChart(sortedMonths);
 }
 
@@ -1366,16 +1413,18 @@ function renderPortfolioTrendChart(monthsArray) {
   const lineCanvas = document.getElementById('portfolioTrendChart');
   if(!lineCanvas) return;
   const ctxLine = lineCanvas.getContext('2d');
-  if (trendChart) trendChart.destroy();
+  if (typeof trendChart !== 'undefined' && trendChart) trendChart.destroy();
 
   let datasets = [];
+  const fundsList = db.funds || [];
+  const records = db.records || {};
   
   selectedSubCatsForCompare.forEach((subName, index) => {
     let subDataTrend = [];
     monthsArray.forEach(m => {
       let monthVal = 0;
-      db.funds.forEach(f => {
-        const val = db.records[m] ? db.records[m][f.id] || 0 : 0;
+      fundsList.forEach(f => {
+        const val = records[m] ? records[m][f.id] || 0 : 0;
         if (f.subCategories && f.subCategories.length > 0) {
           const match = f.subCategories.find(s => s.name.trim() === subName);
           if(match) monthVal += val * (match.weight / 100);
@@ -1415,14 +1464,17 @@ function renderPortfolioTrendChart(monthsArray) {
 
 // ================= RETIREMENT SIMULATOR MODULE =================
 function calculateRetirement(shouldSaveState = false) {
-  const sortedMonths = Object.keys(db.records).sort();
+  const sortedMonths = Object.keys(db.records || {}).sort();
   let latestWealth = 0;
   let latestMonthText = 'ไม่มีข้อมูล';
+  const fundsList = db.funds || [];
   
   if (sortedMonths.length > 0) {
     const latestMonth = sortedMonths[sortedMonths.length - 1];
     latestMonthText = latestMonth;
-    db.funds.forEach(f => { latestWealth += (db.records[latestMonth][f.id] || 0); });
+    if (db.records && db.records[latestMonth]) {
+      fundsList.forEach(f => { latestWealth += (db.records[latestMonth][f.id] || 0); });
+    }
   }
   
   const currentAgeEl = document.getElementById('sim-current-age');
@@ -1548,7 +1600,7 @@ function updateSimProgressBar(pct, msg) {
 }
 
 function loadPlanningSettings() {
-  if (db.planningSettings && Object.keys(db.planningSettings).length > 0) {
+  if (db && db.planningSettings && Object.keys(db.planningSettings).length > 0) {
     setTimeout(() => {
       if(document.getElementById('sim-current-age')) document.getElementById('sim-current-age').value = db.planningSettings.currentAge || 41;
       if(document.getElementById('sim-retire-age')) document.getElementById('sim-retire-age').value = db.planningSettings.retireAge || 60;
@@ -1568,16 +1620,18 @@ function initTransactionsTab() {
   const select = document.getElementById('tx-fund');
   if(!select) return;
   select.innerHTML = '';
-  if (db.funds.length === 0) {
+  
+  const fundsList = db.funds || [];
+  if (fundsList.length === 0) {
     select.innerHTML = '<option value="">-- ยังไม่มีรายชื่อกองทุน --</option>';
   } else {
-    db.funds.forEach(f => { select.innerHTML += `<option value="${f.id}">${f.name} (${f.symbol || ''})</option>`; });
+    fundsList.forEach(f => { select.innerHTML += `<option value="${f.id}">${f.name} (${f.symbol || ''})</option>`; });
   }
 
   const filterSelect = document.getElementById('tx-filter-select');
   if(!filterSelect) return;
   filterSelect.innerHTML = '<option value="ALL">-- แสดงทั้งหมด --</option>';
-  db.funds.forEach(f => { filterSelect.innerHTML += `<option value="${f.id}">${f.name} (${f.symbol || ''})</option>`; });
+  fundsList.forEach(f => { filterSelect.innerHTML += `<option value="${f.id}">${f.name} (${f.symbol || ''})</option>`; });
 
   const today = new Date().toISOString().split('T')[0];
   const dateInput = document.getElementById('tx-date');
@@ -1603,6 +1657,7 @@ function addTransaction() {
   if (!fundIdVal) return alert('กรุณาเลือกกองทุน/บัญชี');
   if (isNaN(amountVal) || amountVal <= 0) return alert('กรุณาระบุจำนวนเงินที่มากกว่า 0 บาท');
 
+  if (!db.transactions) db.transactions = [];
   db.transactions.push({ id: 'tx_' + generateId(), date: dateVal, fundId: fundIdVal, type: typeVal, amount: amountVal });
   saveDB();
   amountEl.value = '';
@@ -1612,7 +1667,7 @@ function addTransaction() {
 
 function deleteTransaction(txId) {
   if (confirm('ยืนยันที่จะลบรายการบันทึกประวัตินี้หรือไม่?')) {
-    db.transactions = db.transactions.filter(t => t.id !== txId);
+    db.transactions = (db.transactions || []).filter(t => t.id !== txId);
     saveDB();
     renderTransactionsTable();
     showToast('ลบรายการสำเร็จแล้ว');
@@ -1626,8 +1681,9 @@ function renderTransactionsTable() {
   const filterValue = (filterSelect ? filterSelect.value : 'ALL') || 'ALL';
   tbody.innerHTML = '';
 
-  let filteredTx = db.transactions;
-  if (filterValue !== 'ALL') { filteredTx = db.transactions.filter(t => t.fundId === filterValue); }
+  const rawTx = db.transactions || [];
+  let filteredTx = rawTx;
+  if (filterValue !== 'ALL') { filteredTx = rawTx.filter(t => t.fundId === filterValue); }
   const sortedTx = [...filteredTx].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   if (sortedTx.length === 0) {
@@ -1635,8 +1691,9 @@ function renderTransactionsTable() {
     return;
   }
 
+  const fundsList = db.funds || [];
   sortedTx.forEach(t => {
-    const fund = db.funds.find(f => f.id === t.fundId);
+    const fund = fundsList.find(f => f.id === t.fundId);
     const fundName = fund ? `${fund.name} (${fund.symbol || ''})` : 'ไม่พบข้อมูลกองทุน';
     let typeBadge = '';
     if (t.type === 'BUY') typeBadge = '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded font-bold">ซื้อ</span>';
