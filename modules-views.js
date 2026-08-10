@@ -33,6 +33,7 @@ Chart.register(chartValueLabelsPlugin);
 
 // ================= HELPER FUNCTIONS =================
 function parseYearMonthToDate(ymStr) {
+  if (!ymStr) return new Date();
   const [y, m] = ymStr.split('-').map(Number);
   return new Date(y, m - 1, 1);
 }
@@ -773,6 +774,7 @@ function getCostBasisByFilter(filterVal, monthStr) {
 }
 
 function monthToTotalMonths(monthStr) {
+  if(!monthStr) return 0;
   const [year, month] = monthStr.split('-').map(Number);
   return year * 12 + month;
 }
@@ -819,15 +821,13 @@ function calculatePeriodReturns(filterId, endMonthStr) {
       return;
     }
 
-    // กำหนดวันเริ่มต้น (BMV Date) และวันสิ้นสุด (EMV Date)
     const startDate = parseYearMonthToDate(startMonthToUse);
     const endDate = parseYearMonthToDate(endMonthStr);
     const totalDays = Math.max(1, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
-    let netCashFlow = 0; // ค่า F (กระแสเงินสดสุทธิ)
-    let weightedCashFlow = 0; // ค่า SUM(C_i * W_i)
+    let netCashFlow = 0;
+    let weightedCashFlow = 0;
 
-    // ดึงประวัติธุรกรรมระหว่างช่วงเวลา
     const sortedTx = [...db.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
     sortedTx.forEach(t => {
       const txMonth = t.date.substring(0, 7);
@@ -853,10 +853,7 @@ function calculatePeriodReturns(filterId, endMonthStr) {
 
         if (isMatch) {
           const txDate = new Date(t.date);
-          // C_i: ซื้อ (ฝากเข้า) = บวก, ขาย (ถอนออก) = ลบ
           const Ci = t.type === 'BUY' ? t.amount : -t.amount;
-          
-          // คำนวณวันคงเหลือในระบบ และน้ำหนักเวลา (Wi)
           const daysRemaining = Math.max(0, (endDate.getTime() - txDate.getTime()) / (1000 * 60 * 60 * 24));
           const Wi = Math.min(1, Math.max(0, daysRemaining / totalDays));
 
@@ -866,7 +863,6 @@ function calculatePeriodReturns(filterId, endMonthStr) {
       });
     });
 
-    // คำนวณตามสูตร Modified Dietz: R = (EMV - BMV - F) / (BMV + SUM(Ci * Wi))
     const numerator = endMV - startMV - netCashFlow;
     const denominator = startMV + weightedCashFlow;
 
@@ -877,9 +873,9 @@ function calculatePeriodReturns(filterId, endMonthStr) {
 
     let returnPct = (numerator / denominator) * 100;
 
-    const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(startMonthToUse);
+    const [sYear, sMonth] = startMonthToUse.split('-').map(Number);
+    const actualMonthsDiff = (endYear * 12 + endMonth) - (sYear * 12 + sMonth);
 
-    // กรณี > 1 ปี ปรับเป็นต่อปี
     if (p.isAnnualized && actualMonthsDiff > 12) {
       const yearsDiff = actualMonthsDiff / 12;
       returnPct = returnPct / yearsDiff;
