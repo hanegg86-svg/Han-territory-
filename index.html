@@ -1511,17 +1511,19 @@
           const { base64Data, mimeType } = await readFileAsBase64(file);
 
           const promptText = `
-            Extract mutual fund symbols/names with NAV, stock tickers with market prices and share quantities, AND cash balances from this portfolio image.
+            Extract financial data from this portfolio / bond / mutual fund screenshot image.
             
-            RULES FOR CASH / MONEY / UNINVESTED CASH:
-            - If you see "เงินสด", "Cash", or "Uninvested Cash", set "symbol": "CASH", "isCash": true, and put the cash amount into "shares" field (and "price": 1).
+            RULES:
+            1. Look for Symbol / Ticker / Fund Name (e.g. GULF300A, SGP292A, K-SF-SSF).
+            2. Look for Market Price, NAV, Market Value, or Unit Price under headers like "Market", "Cost", "NAV", "Price".
+            3. If you see "Market" value or price (e.g. 1010.10 or 999.04), return it as "price".
+            4. For Cash, set "symbol": "CASH", "isCash": true, and "shares": amount.
 
-            Return ONLY a clean JSON array with no extra text or markdown.
-            Format example: 
+            Return ONLY a clean JSON array without markdown formatting.
+            Example:
             [
-              {"symbol": "K-SF-SSF", "price": 10.4521},
-              {"symbol": "NINTENDO19", "price": 16.90, "shares": 11700},
-              {"symbol": "CASH", "isCash": true, "shares": 43383.31, "price": 1}
+              {"symbol": "GULF300A", "price": 1010.10},
+              {"symbol": "SGP292A", "price": 999.04}
             ]
           `;
 
@@ -1556,11 +1558,25 @@
                 db.funds.forEach(fund => {
                   const fSymbol = (fund.symbol || '').toUpperCase().trim();
                   const fName = (fund.name || '').toUpperCase().trim();
-                  if ((fSymbol === scannedCode || fName === scannedCode) && !isNaN(scannedPrice) && !isCashItem) {
+                  
+                  const isMatched = (fSymbol === scannedCode || fName === scannedCode || 
+                                       (scannedCode.length >= 4 && fSymbol.includes(scannedCode)));
+
+                  if (isMatched && !isNaN(scannedPrice) && !isCashItem) {
                     const navEl = document.getElementById(`entry-nav-${fund.id}`);
+                    const totalEl = document.getElementById(`entry-${fund.id}`);
+
                     if (navEl) {
                       navEl.value = scannedPrice;
                       autoCalcMonthlyFund(fund.id, 'nav');
+                      matchedCount++;
+                    } else if (totalEl) {
+                      if (fund.units && fund.units > 0) {
+                        totalEl.value = formatNumber(scannedPrice * fund.units);
+                      } else {
+                        totalEl.value = formatNumber(scannedPrice);
+                      }
+                      scheduleAutoSave(fund.id, totalEl.value);
                       matchedCount++;
                     }
                   }
@@ -1576,7 +1592,7 @@
                         holding.avgCost = 1;
                         holding.currentPrice = 1;
                         matchedCount++;
-                      } else if (holdingTicker === scannedCode && !isCashItem) {
+                      } else if ((holdingTicker === scannedCode || holdingTicker.includes(scannedCode)) && !isCashItem) {
                         if (!isNaN(scannedPrice)) holding.currentPrice = scannedPrice;
                         if (!isNaN(scannedShares) && scannedShares > 0) holding.shares = scannedShares;
                         matchedCount++;
