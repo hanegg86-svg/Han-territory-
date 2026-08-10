@@ -1842,6 +1842,7 @@
       return closestMonth;
     }
 
+    // ปรับแก้ไขการคำนวณผลตอบแทนย้อนหลังให้แสดง N/A หากไม่มีข้อมูลบันทึกจริงในช่วง +-6 เดือน
     function calculatePeriodReturns(filterId, endMonthStr) {
       const allMonths = Object.keys(db.records).sort();
       if (!allMonths.includes(endMonthStr)) return null;
@@ -1850,7 +1851,11 @@
       
       const endMV = getMarketValueByFilter(filterId, endMonthStr);
       const endCost = getCostBasisByFilter(filterId, endMonthStr);
-      const endProfitPct = endCost > 0 ? ((endMV - endCost) / endCost) * 100 : 0;
+
+      // ดึงรายชื่อเดือนทั้งหมดที่มีการเริ่มบันทึกข้อมูลจริง (> 0) ของกองทุน/กลุ่มที่เลือก
+      const validMonthsForFund = allMonths.filter(m => {
+        return getMarketValueByFilter(filterId, m) > 0 || getCostBasisByFilter(filterId, m) > 0;
+      });
 
       const periods = [
         { key: '6m', name: 'ย้อนหลัง 6 เดือน', monthsBack: 6, isAnnualized: false },
@@ -1867,20 +1872,23 @@
         const targetMonth = targetTotalMonths - (targetYear * 12);
         const targetMonthStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
 
-        const matchedMonth = findClosestMonth(targetMonthStr, allMonths, 6);
+        // ค้นหาเดือนที่ใกล้เคียงสุดในช่วง +- 6 เดือน เฉพาะจากเดือนที่มีข้อมูลบันทึกจริงเท่านั้น
+        const matchedMonth = findClosestMonth(targetMonthStr, validMonthsForFund, 6);
 
+        // หากไม่มีข้อมูลในช่วง +- 6 เดือน ให้ส่งค่า returnPct เป็น null เพื่อแสดง N/A
         if (!matchedMonth) {
           results[p.key] = { returnPct: null, matchedMonth: null, isAnnualized: p.isAnnualized, label: p.name };
         } else {
           const startMV = getMarketValueByFilter(filterId, matchedMonth);
           const startCost = getCostBasisByFilter(filterId, matchedMonth);
-          const startProfitPct = startCost > 0 ? ((startMV - startCost) / startCost) * 100 : 0;
 
-          if (endCost <= 0) {
-            results[p.key] = { returnPct: null, matchedMonth: matchedMonth, isAnnualized: p.isAnnualized, label: p.name };
+          if (startCost <= 0 && startMV <= 0) {
+            results[p.key] = { returnPct: null, matchedMonth: null, isAnnualized: p.isAnnualized, label: p.name };
           } else {
             const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(matchedMonth);
             
+            const startProfitPct = startCost > 0 ? ((startMV - startCost) / startCost) * 100 : 0;
+            const endProfitPct = endCost > 0 ? ((endMV - endCost) / endCost) * 100 : 0;
             let diffPct = endProfitPct - startProfitPct;
             let returnPct = 0;
 
@@ -2788,7 +2796,7 @@
              symbol.includes('ออมทรัพย์') || symbol.includes('เผื่อเรียก');
     }
 
-    // ฟังก์ชันคำนวณต้นทุนสะสมรายกองทุน (ปรับเพิ่มระบบ Auto Cost สำหรับ ออมทรัพย์/เผื่อเรียก)
+    // ฟังก์ชันคำนวณต้นทุนสะสมรายกองทุน (รวมระบบ Auto Cost สำหรับ ออมทรัพย์/เผื่อเรียก)
     function calculateCumulativeCost(fundId, targetMonth) {
       const fund = db.funds.find(f => f.id === fundId);
       
