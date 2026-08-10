@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wealth-tracker-v3.5.0';
+const CACHE_NAME = 'wealth-tracker-v3.5.1';
 
 // รายการไฟล์ทั้งหมดที่ต้องการให้ Service Worker ทำการ Caching ไว้สำหรับ Offline Mode
 const ASSETS_TO_CACHE = [
@@ -6,12 +6,12 @@ const ASSETS_TO_CACHE = [
   './index.html',
   './manifest.json',
   './icon.png',
-  // JS Modules ใหม่ทั้ง 4 ไฟล์
+  // JS Modules ทั้ง 4 ไฟล์
   './config-store.js',
   './api-gemini.js',
   './modules-views.js',
   './app.js',
-  // External Libraries (เพื่อรองรับการใช้งาน Offline แบบเต็มรูปแบบ)
+  // External Libraries
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
   'https://cdn.jsdelivr.net/npm/chart.js',
@@ -28,7 +28,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// 2. Activate Event: ลบ Cache เวอร์ชั่นเก่าทิ้งเมื่อมีการอัปเดตเวอร์ชั่นใหม่
+// 2. Activate Event: ลบ Cache เวอร์ชั่นเก่าทิ้งทันทีที่มีการอัปเดตเวอร์ชัน
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -44,7 +44,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// 3. Fetch Event: ดึงข้อมูลจาก Cache ก่อน หากไม่มีค่อยดึงจาก Network (Stale-While-Revalidate Strategy)
+// 3. Fetch Event: ดึงข้อมูลจาก Cache ก่อน หากไม่มีค่อยดึงจาก Network
 self.addEventListener('fetch', (event) => {
   // ข้ามการทำ Caching สำหรับการเรียก Gemini API
   if (event.request.url.includes('generativelanguage.googleapis.com')) {

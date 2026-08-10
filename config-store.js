@@ -38,9 +38,17 @@ function parseLocalNumber(str) { if(!str) return 0; const v = parseFloat(String(
 
 function showToast(msg) {
   const toast = document.getElementById('global-toast');
+  if(!toast) return;
   document.getElementById('toast-message').innerText = msg;
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+function checkEmptyState() {
+  const warn = document.getElementById('empty-state-warning');
+  if (!warn) return;
+  if (db.funds.length === 0) warn.classList.remove('hidden');
+  else warn.classList.add('hidden');
 }
 
 // ================= LOCALSTORAGE & DATABASE =================
@@ -95,7 +103,9 @@ function loadDB() {
     }
   }
   checkEmptyState();
-  loadPlanningSettings();
+  if (typeof loadPlanningSettings === 'function') {
+    loadPlanningSettings();
+  }
   updateStorageSizeDisplay();
 }
 
@@ -111,13 +121,6 @@ function factoryReset() {
     localStorage.removeItem('GEMINI_API_KEY');
     location.reload();
   }
-}
-
-function checkEmptyState() {
-  const warn = document.getElementById('empty-state-warning');
-  if (!warn) return;
-  if (db.funds.length === 0) warn.classList.remove('hidden');
-  else warn.classList.add('hidden');
 }
 
 // ================= BACKUP / RESTORE / EXPORT =================
@@ -170,8 +173,8 @@ function restoreFromJson() {
 
       saveDB();
       input.value = '';
-      loadPlanningSettings();
-      refreshCurrentTab();
+      if (typeof loadPlanningSettings === 'function') loadPlanningSettings();
+      if (typeof refreshCurrentTab === 'function') refreshCurrentTab();
       showToast('Restore สำเร็จ');
     } catch (err) {
       alert('ไม่สามารถอ่านไฟล์ JSON ได้');
