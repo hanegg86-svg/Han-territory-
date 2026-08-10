@@ -244,9 +244,9 @@
         <!-- การ์ดสรุปมูลค่าปัจจุบัน & ต้นทุน -->
         <div id="chart-latest-summary" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4"></div>
 
-        <!-- การ์ดสรุปผลตอบแทนย้อนหลัง (6M, 1Y, 2Y ต่อปี, 5Y ต่อปี) -->
+        <!-- การ์ดสรุปผลตอบแทนย้อนหลัง (คำนวณแบบรวมต้นทุนสะสม) -->
         <div class="space-y-2">
-          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i> สรุปผลตอบแทนย้อนหลังตามระยะเวลา</h3>
+          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i> สรุปผลตอบแทนย้อนหลังตามระยะเวลา (คำนวณรวมต้นทุน)</h3>
           <div id="chart-period-returns" class="grid grid-cols-2 sm:grid-cols-4 gap-4"></div>
         </div>
 
@@ -1819,13 +1819,11 @@
       }
     }
 
-    // แปลงเดือน YYYY-MM เป็นจำนวนเดือน
     function monthToTotalMonths(monthStr) {
       const [year, month] = monthStr.split('-').map(Number);
       return year * 12 + month;
     }
 
-    // ค้นหาเดือนที่ใกล้เคียงที่สุด (ไม่เกิน maxDiffMonths)
     function findClosestMonth(targetMonthStr, availableMonths, maxDiffMonths = 6) {
       if (!availableMonths || availableMonths.length === 0) return null;
       
@@ -1844,13 +1842,15 @@
       return closestMonth;
     }
 
-    // คำนวณผลตอบแทนย้อนหลัง (6M, 1Y, 2Y, 5Y)
     function calculatePeriodReturns(filterId, endMonthStr) {
       const allMonths = Object.keys(db.records).sort();
       if (!allMonths.includes(endMonthStr)) return null;
 
       const [endYear, endMonth] = endMonthStr.split('-').map(Number);
-      const endValue = getMarketValueByFilter(filterId, endMonthStr);
+      
+      const endMV = getMarketValueByFilter(filterId, endMonthStr);
+      const endCost = getCostBasisByFilter(filterId, endMonthStr);
+      const endProfitPct = endCost > 0 ? ((endMV - endCost) / endCost) * 100 : 0;
 
       const periods = [
         { key: '6m', name: 'ย้อนหลัง 6 เดือน', monthsBack: 6, isAnnualized: false },
@@ -1872,18 +1872,23 @@
         if (!matchedMonth) {
           results[p.key] = { returnPct: null, matchedMonth: null, isAnnualized: p.isAnnualized, label: p.name };
         } else {
-          const startValue = getMarketValueByFilter(filterId, matchedMonth);
-          if (startValue <= 0 || endValue <= 0) {
+          const startMV = getMarketValueByFilter(filterId, matchedMonth);
+          const startCost = getCostBasisByFilter(filterId, matchedMonth);
+          const startProfitPct = startCost > 0 ? ((startMV - startCost) / startCost) * 100 : 0;
+
+          if (endCost <= 0) {
             results[p.key] = { returnPct: null, matchedMonth: matchedMonth, isAnnualized: p.isAnnualized, label: p.name };
           } else {
             const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(matchedMonth);
+            
+            let diffPct = endProfitPct - startProfitPct;
             let returnPct = 0;
 
             if (p.isAnnualized && actualMonthsDiff > 0) {
               const yearsDiff = actualMonthsDiff / 12;
-              returnPct = (Math.pow(endValue / startValue, 1 / yearsDiff) - 1) * 100;
+              returnPct = diffPct / yearsDiff; 
             } else {
-              returnPct = ((endValue - startValue) / startValue) * 100;
+              returnPct = diffPct;
             }
 
             results[p.key] = { returnPct, matchedMonth, actualMonthsDiff, isAnnualized: p.isAnnualized, label: p.name };
@@ -1948,7 +1953,6 @@
         `;
       }
 
-      // แสดงการ์ดสรุปผลตอบแทนย้อนหลัง
       if (periodContainer && endM) {
         const periodData = calculatePeriodReturns(filterId, endM);
 
@@ -2767,7 +2771,33 @@
       if (currentTab === 'tab-allocation') initAllocationTab();
     }
 
+    // ฟังก์ชันเช็คว่าเป็นบัญชีออมทรัพย์/เผื่อเรียกทั่วไป ที่ต้องการให้อัปเดตต้นทุนเท่ากับมูลค่าปัจจุบันอัตโนมัติหรือไม่
+    function isAutoCostSavingsFund(fund) {
+      if (!fund) return false;
+      const name = (fund.name || '').toLowerCase();
+      const symbol = (fund.symbol || '').toLowerCase();
+
+      // ยกเว้น e-saving, esaving, youtrip ให้กรอกต้นทุนเองตามปกติ
+      if (name.includes('esaving') || name.includes('e-saving') || name.includes('youtrip') ||
+          symbol.includes('esaving') || symbol.includes('e-saving') || symbol.includes('youtrip')) {
+        return false;
+      }
+
+      // หากมีคำว่า "ออมทรัพย์" หรือ "เผื่อเรียก" ให้เซตต้นทุน = มูลค่าปัจจุบัน อัตโนมัติ
+      return name.includes('ออมทรัพย์') || name.includes('เผื่อเรียก') || 
+             symbol.includes('ออมทรัพย์') || symbol.includes('เผื่อเรียก');
+    }
+
+    // ฟังก์ชันคำนวณต้นทุนสะสมรายกองทุน (ปรับเพิ่มระบบ Auto Cost สำหรับ ออมทรัพย์/เผื่อเรียก)
     function calculateCumulativeCost(fundId, targetMonth) {
+      const fund = db.funds.find(f => f.id === fundId);
+      
+      // หากเป็นบัญชี ออมทรัพย์/เผื่อเรียก ให้ใช้ยอดเงิน ณ เดือนนั้น เป็นต้นทุนอัตโนมัติ
+      if (fund && isAutoCostSavingsFund(fund)) {
+        return db.records[targetMonth] ? (db.records[targetMonth][fundId] || 0) : 0;
+      }
+
+      // บัญชีอื่นๆ (YouTrip, e-Saving, กองทุน) คำนวณจากประวัติซื้อขายตามเดิม
       let cumulativeCost = 0;
       db.transactions.forEach(t => {
         const txMonth = t.date.substring(0, 7); 
