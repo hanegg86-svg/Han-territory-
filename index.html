@@ -1,187 +1,720 @@
-// ================= GEMINI API KEY MANAGEMENT =================
-function getStoredApiKey() { return localStorage.getItem('GEMINI_API_KEY') || ''; }
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Pro Wealth Tracker PWA</title>
 
-function saveApiKey() {
-  const input = document.getElementById('gemini-api-key-input');
-  if(!input) return;
-  const key = input.value.trim();
-  if(!key) return alert('กรุณากรอก API Key ก่อนบันทึก');
-  localStorage.setItem('GEMINI_API_KEY', key);
-  updateApiKeyStatusBadge();
-  showToast('บันทึก Gemini API Key เรียบร้อยแล้ว');
-}
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="WealthTracker" />
+  <link rel="icon" type="image/png" href="./icon.png" />
+  <link rel="apple-touch-icon" href="./icon.png" />
 
-function clearApiKey() {
-  if(confirm('ยืนยันลบ Gemini API Key ในเครื่องหรือไม่?')) {
-    localStorage.removeItem('GEMINI_API_KEY');
-    const input = document.getElementById('gemini-api-key-input');
-    if(input) input.value = '';
-    updateApiKeyStatusBadge();
-    showToast('ลบ API Key เรียบร้อยแล้ว');
-  }
-}
+  <!-- Tailwind & FontAwesome & Chart.js & SheetJS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
-function toggleApiKeyVisibility() {
-  const input = document.getElementById('gemini-api-key-input');
-  const icon = document.getElementById('toggle-key-icon');
-  if(!input || !icon) return;
-  if (input.type === 'password') {
-    input.type = 'text';
-    icon.classList.replace('fa-eye', 'fa-eye-slash');
-  } else {
-    input.type = 'password';
-    icon.classList.replace('fa-eye-slash', 'fa-eye');
-  }
-}
-
-function updateApiKeyStatusBadge() {
-  const badge = document.getElementById('api-key-status-badge');
-  const input = document.getElementById('gemini-api-key-input');
-  const key = getStoredApiKey();
-
-  if(input && key) input.value = key;
-
-  if(badge) {
-    if(key) {
-      badge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
-      badge.innerHTML = `<i class="fa-solid fa-circle-check mr-1.5"></i> พร้อมใช้งาน Gemini API Key`;
-    } else {
-      badge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30";
-      badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1.5"></i> ยังไม่ได้บันทึก API Key`;
-    }
-  }
-}
-
-// ================= GEMINI AI OCR SCAN =================
-async function processImageWithGemini(event) {
-  const files = event.target.files;
-  if (!files || files.length === 0) return;
-
-  const apiKey = getStoredApiKey();
-  if (!apiKey) {
-    alert('กรุณากรอกและบันทึก Gemini API Key ในแท็บ "ตั้งค่า" ก่อนเปิดใช้งานสแกนภาพครับ');
-    switchTab('tab-setup');
-    return;
-  }
-
-  showToast(`กำลังสแกนรูปภาพจำนวน ${files.length} ภาพ ด้วย Gemini 3.1 Flash-Lite AI...`);
-
-  const readFileAsBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({
-        base64Data: reader.result.split(',')[1],
-        mimeType: file.type || 'image/jpeg'
-      });
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
-  try {
-    let matchedCount = 0;
-
-    for (let file of files) {
-      const { base64Data, mimeType } = await readFileAsBase64(file);
-
-      const promptText = `
-        Analyze this portfolio/mutual fund image.
-        Return ONLY a clean JSON object with two fields:
-        1. "items": Array of objects for mutual funds/symbols with NAV or Amount [{"symbol": "K-SF-SSF", "nav": 10.45, "amount": 10000}]
-        2. "portfolio": Object for portfolio breakdown if present (e.g. {"cash": 86172.96, "stock": 157320.00})
-
-        Return strictly valid JSON syntax without markdown blocks:
-        {"items": [], "portfolio": {"cash": 0, "stock": 0}}
-      `;
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: promptText },
-              { inline_data: { mime_type: mimeType, data: base64Data } }
-            ]
-          }]
-        })
-      });
-
-      const resData = await response.json();
-      if (resData.error) continue;
-
-      const rawText = resData.candidates[0].content.parts[0].text.trim();
-      const jsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsedData = JSON.parse(jsonStr);
-
-      if (parsedData.portfolio) {
-        const cashVal = parseFloat(parsedData.portfolio.cash) || 0;
-        const stockVal = parseFloat(parsedData.portfolio.stock) || 0;
-        const totalStockPlusCash = cashVal + stockVal;
-
-        if (totalStockPlusCash > 0) {
-          const matchedStockFund = db.funds.find(f => {
-            const fSymbol = (f.symbol || '').toUpperCase().trim();
-            const fName = (f.name || '').toUpperCase().trim();
-            return fSymbol === 'หุ้น' || fName === 'หุ้น' || fSymbol === 'STOCK' || fName.includes('หุ้น');
-          });
-
-          if (matchedStockFund) {
-            const totalInput = document.getElementById(`entry-${matchedStockFund.id}`);
-            if (totalInput) {
-              totalInput.value = formatNumber(totalStockPlusCash);
-              autoCalcMonthlyFund(matchedStockFund.id, 'total');
-              matchedCount++;
-            }
-          }
-        }
-      }
-
-      if (Array.isArray(parsedData.items) && parsedData.items.length > 0) {
-        parsedData.items.forEach(item => {
-          const scannedCode = (item.symbol || '').toUpperCase().trim();
-          const navVal = parseFloat(item.nav);
-          const amountVal = parseFloat(item.amount);
-
-          if (scannedCode) {
-            const matchedFund = db.funds.find(f => {
-              const fSymbol = (f.symbol || '').toUpperCase().trim();
-              const fName = (f.name || '').toUpperCase().trim();
-              return fSymbol === scannedCode || fName === scannedCode || scannedCode.includes(fSymbol) || fSymbol.includes(scannedCode);
-            });
-
-            if (matchedFund) {
-              if (!isNaN(navVal) && navVal > 0) {
-                const navEl = document.getElementById(`entry-nav-${matchedFund.id}`);
-                if (navEl) {
-                  navEl.value = navVal;
-                  autoCalcMonthlyFund(matchedFund.id, 'nav');
-                  matchedCount++;
-                }
-              } else if (!isNaN(amountVal) && amountVal > 0) {
-                const totalEl = document.getElementById(`entry-${matchedFund.id}`);
-                if (totalEl) {
-                  totalEl.value = formatNumber(amountVal);
-                  autoCalcMonthlyFund(matchedFund.id, 'total');
-                  matchedCount++;
-                }
-              }
-            }
-          }
-        });
-      }
+  <style>
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
     }
 
-    if (matchedCount > 0) {
-      showToast(`อัปเดตข้อมูลสำเร็จรวม ${matchedCount} รายการ!`);
-    } else {
-      alert('สแกนสำเร็จแต่ไม่พบรายการที่ตรงกับ Symbol ในระบบ กรุณาตรวจสอบแท็บตั้งค่า');
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: #10b981;
+      color: white;
+      padding: 12px 16px;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 800;
+      box-shadow: 0 12px 30px rgba(15,23,42,.2);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: .25s ease;
+      pointer-events: none;
+      z-index: 9999;
     }
 
-  } catch (err) {
-    console.error(err);
-    alert('เกิดข้อผิดพลาดในการประมวลผล Gemini AI: ' + err.message);
-  } finally {
-    event.target.value = ''; 
-  }
-}
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 p-2 md:p-6 font-sans text-slate-800 pb-24">
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- PWA Installation Prompt Banner -->
+    <div id="pwa-install-banner" class="hidden bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 rounded-2xl shadow-lg flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <i class="fa-solid fa-mobile-screen-button text-2xl"></i>
+        <div>
+          <h4 class="font-bold text-sm">ติดตั้งแอปไว้บนหน้าจอมือถือ</h4>
+          <p class="text-xs text-blue-100">ใช้งานง่าย สะดวก รวดเร็ว เหมือนแอปจริง</p>
+        </div>
+      </div>
+      <button onclick="installPWA()" class="px-4 py-2 bg-white text-blue-700 rounded-xl font-bold text-xs shadow-md hover:bg-slate-100 transition-all">
+        ติดตั้งแอป
+      </button>
+    </div>
+
+    <!-- Header & Tab Menu -->
+    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center space-x-4">
+        <div class="p-3 bg-blue-600 rounded-xl text-white shadow-lg shadow-blue-200">
+          <i class="fa-solid fa-wallet text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900">Pro Wealth Tracker</h1>
+          <p class="text-sm text-slate-500">ระบบจัดการพอร์ตลงทุนส่วนบุคคล (PWA Mobile Edition)</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap justify-center gap-2 bg-slate-100 p-1.5 rounded-xl">
+        <button onclick="switchTab('tab-compare')" id="btn-tab-compare" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
+          <i class="fa-solid fa-scale-balanced mr-1"></i>แดชบอร์ด
+        </button>
+        <button onclick="switchTab('tab-charts')" id="btn-tab-charts" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
+          <i class="fa-solid fa-chart-line mr-1"></i>กราฟกองทุน
+        </button>
+        <button onclick="switchTab('tab-allocation')" id="btn-tab-allocation" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
+          <i class="fa-solid fa-bullseye mr-1"></i>จัดสรรพอร์ต
+        </button>
+        <button onclick="switchTab('tab-planning')" id="btn-tab-planning" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
+          <i class="fa-solid fa-hourglass-half mr-1"></i>เกษียณ
+        </button>
+        <button onclick="switchTab('tab-transactions')" id="btn-tab-transactions" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
+          <i class="fa-solid fa-list-check mr-1"></i>ประวัติซื้อขาย
+        </button>
+        <button onclick="switchTab('tab-entry')" id="btn-tab-entry" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
+          <i class="fa-solid fa-pen-to-square mr-1"></i>บันทึกยอด
+        </button>
+        <button onclick="switchTab('tab-setup')" id="btn-tab-setup" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
+          <i class="fa-solid fa-gear mr-1"></i>ตั้งค่า
+        </button>
+      </div>
+    </div>
+
+    <!-- Empty State Warning -->
+    <div id="empty-state-warning" class="hidden bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl flex items-start space-x-3">
+      <i class="fa-solid fa-triangle-exclamation mt-1"></i>
+      <div>
+        <h4 class="font-bold">ยังไม่มีข้อมูลกองทุนในระบบ</h4>
+        <p class="text-sm">กรุณาไปที่แท็บ <b>ตั้งค่า</b> เพื่อเพิ่มรายชื่อบัญชีและรหัสกองทุน ก่อนเริ่มใช้งาน</p>
+      </div>
+    </div>
+
+    <!-- TAB 1: COMPARE DASHBOARD -->
+    <div id="tab-compare" class="tab-content hidden space-y-10">
+      <div class="space-y-6">
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">เปรียบเทียบการเติบโตรายปี</h2>
+            <p class="text-sm text-slate-500">ระบบจะดึงยอดของเดือนล่าสุดที่มีการบันทึกในแต่ละปีมาเปรียบเทียบ</p>
+          </div>
+          <div class="flex items-center space-x-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
+            <select id="comp-year1" onchange="renderCompareDashboard()" class="p-2 border border-slate-300 rounded-lg text-sm font-bold outline-none cursor-pointer"></select>
+            <span class="text-slate-400 text-sm font-bold">VS</span>
+            <select id="comp-year2" onchange="renderCompareDashboard()" class="p-2 border border-slate-300 rounded-lg text-sm font-bold outline-none cursor-pointer"></select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-1 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg flex flex-col justify-center">
+            <p class="text-slate-400 text-sm font-medium mb-2">สินทรัพย์รวมทั้งหมด</p>
+            <h3 id="comp-total-val" class="text-4xl font-bold mb-4">฿0.00</h3>
+            <div class="flex items-center space-x-3">
+              <div id="comp-total-diff" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-white/10 text-white">0.00 บาท</div>
+              <div id="comp-total-pct" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-white/10 text-white">0.00%</div>
+            </div>
+            <p id="comp-summary-text" class="text-xs text-slate-400 mt-4">เปรียบเทียบปี - กับปี -</p>
+          </div>
+
+          <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <p class="text-xs font-bold text-emerald-600 mb-1 uppercase">สภาพคล่องสูง</p>
+              <h4 id="comp-cat-high" class="text-xl font-bold text-slate-900">฿0</h4>
+              <p id="comp-diff-high" class="text-xs mt-1 font-medium text-slate-500">0 บาท (0%)</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <p class="text-xs font-bold text-amber-600 mb-1 uppercase">สภาพคล่องปานกลาง</p>
+              <h4 id="comp-cat-med" class="text-xl font-bold text-slate-900">฿0</h4>
+              <p id="comp-diff-med" class="text-xs mt-1 font-medium text-slate-500">0 บาท (0%)</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <p class="text-xs font-bold text-purple-600 mb-1 uppercase">สภาพคล่องต่ำ</p>
+              <h4 id="comp-cat-low" class="text-xl font-bold text-slate-900">฿0</h4>
+              <p id="comp-diff-low" class="text-xs mt-1 font-medium text-slate-500">0 บาท (0%)</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <p class="text-xs font-bold text-rose-600 mb-1 uppercase">มูลค่าสะสมประกัน</p>
+              <h4 id="comp-cat-ins" class="text-xl font-bold text-slate-900">฿0</h4>
+              <p id="comp-diff-ins" class="text-xs mt-1 font-medium text-slate-500">0 บาท (0%)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="border-slate-200">
+
+      <div class="space-y-6">
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">เปรียบเทียบการเติบโตรายเดือน</h2>
+            <p class="text-sm text-slate-500">เลือกรอบเดือน 2 ช่วงเพื่อดูการเปลี่ยนแปลงของสินทรัพย์</p>
+          </div>
+          <div class="flex items-center space-x-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
+            <input type="month" id="mcomp-month1" onchange="renderMonthCompareDashboard()" class="p-2 border border-slate-300 rounded-lg text-sm font-bold outline-none cursor-pointer">
+            <span class="text-slate-400 text-sm font-bold">VS</span>
+            <input type="month" id="mcomp-month2" onchange="renderMonthCompareDashboard()" class="p-2 border border-slate-300 rounded-lg text-sm font-bold outline-none cursor-pointer">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-1 bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl p-6 text-white shadow-lg flex flex-col justify-center">
+            <p class="text-blue-200 text-sm font-medium mb-2">สินทรัพย์รวมทั้งหมด</p>
+            <h3 id="mcomp-total-val" class="text-4xl font-bold mb-4">฿0.00</h3>
+            <div class="flex items-center space-x-3">
+              <div id="mcomp-total-diff" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-white/10 text-white">0.00 บาท</div>
+              <div id="mcomp-total-pct" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-white/10 text-white">0.00%</div>
+            </div>
+            <p id="mcomp-summary-text" class="text-xs text-blue-200 mt-4">เทียบข้อมูลเดือน - กับเดือน -</p>
+          </div>
+
+          <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <p class="text-xs font-bold text-emerald-600 mb-1 uppercase">สภาพคล่องสูง</p>
+              <h4 id="mcomp-cat-high" class="text-xl font-bold text-slate-900">฿0</h4>
+              <p id="mcomp-diff-high" class="text-xs mt-1 font-medium text-slate-500">0 บาท (0%)</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <p class="text-xs font-bold text-amber-600 mb-1 uppercase">สภาพคล่องปานกลาง</p>
+              <h4 id="mcomp-cat-med" class="text-xl font-bold text-slate-900">฿0</h4>
+              <p id="mcomp-diff-med" class="text-xs mt-1 font-medium text-slate-500">0 บาท (0%)</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <p class="text-xs font-bold text-purple-600 mb-1 uppercase">สภาพคล่องต่ำ</p>
+              <h4 id="mcomp-cat-low" class="text-xl font-bold text-slate-900">฿0</h4>
+              <p id="mcomp-diff-low" class="text-xs mt-1 font-medium text-slate-500">0 บาท (0%)</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <p class="text-xs font-bold text-rose-600 mb-1 uppercase">มูลค่าสะสมประกัน</p>
+              <h4 id="mcomp-cat-ins" class="text-xl font-bold text-slate-900">฿0</h4>
+              <p id="mcomp-diff-ins" class="text-xs mt-1 font-medium text-slate-500">0 บาท (0%)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: CHARTS ANALYSIS & PERFORMANCE -->
+    <div id="tab-charts" class="tab-content hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900 mb-1">วิเคราะห์กราฟและเปรียบเทียบต้นทุน</h2>
+          <p class="text-sm text-slate-500">พล็อตเทียบระหว่าง <b>มูลค่าสินทรัพย์ปัจจุบัน</b> กับ <b>เงินลงทุนสะสม (ต้นทุน)</b> จากประวัติการซื้อขาย</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">เลือกกองทุน หรือ กลุ่มสินทรัพย์/ประเภทย่อย</label>
+            <select id="chart-fund-select" onchange="renderIndividualChart()" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-bold outline-none bg-white text-slate-900"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">ตั้งแต่เดือน</label>
+            <input type="month" id="chart-start" onchange="renderIndividualChart()" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">ถึงเดือน</label>
+            <input type="month" id="chart-end" onchange="renderIndividualChart()" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none">
+          </div>
+        </div>
+
+        <!-- การ์ดสรุปผลต่างช่วงเวลา, มูลค่าปัจจุบัน & ต้นทุน -->
+        <div id="chart-latest-summary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"></div>
+
+        <!-- การ์ดสรุปผลตอบแทนย้อนหลัง (คำนวณแบบรวมต้นทุนสะสม) -->
+        <div class="space-y-2">
+          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i> สรุปผลตอบแทนย้อนหลังตามระยะเวลา (คำนวณรวมต้นทุน)</h3>
+          <div id="chart-period-returns" class="grid grid-cols-2 sm:grid-cols-4 gap-4"></div>
+        </div>
+
+        <div class="relative h-[400px] w-full border border-slate-200 rounded-xl p-4 bg-white">
+          <canvas id="individualChart"></canvas>
+        </div>
+
+        <div class="border border-slate-200 rounded-xl p-5 bg-white space-y-3 shadow-sm">
+          <div class="flex items-center space-x-2 border-b border-slate-100 pb-2">
+            <div class="text-blue-600 text-sm"><i class="fa-solid fa-calendar-check text-md"></i></div>
+            <h3 class="font-bold text-slate-900 text-sm">ตารางสรุปผลตอบแทนรายปี (5 ปีย้อนหลัง)</h3>
+          </div>
+          <p class="text-xs text-slate-400">คำนวณจากมูลค่าตลาด ณ สิ้นปี เทียบกับ เงินลงทุนสะสม (ต้นทุนสะสม) ของหน่วยที่เลือก</p>
+          
+          <div class="overflow-x-auto rounded-lg border border-slate-100">
+            <table class="w-full text-left border-collapse bg-white text-xs">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                  <th class="p-3">ปีปฏิทิน</th>
+                  <th class="p-3 text-right">มูลค่าสินทรัพย์สิ้นปี</th>
+                  <th class="p-3 text-right">เงินลงทุนสะสม (ต้นทุน)</th>
+                  <th class="p-3 text-right">ผลกำไรรวม (บาท)</th>
+                  <th class="p-3 text-right">คิดเป็น (%)</th>
+                </tr>
+              </thead>
+              <tbody id="chart-annual-returns-body" class="font-semibold text-slate-700"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: ASSET ALLOCATION TARGETS & LINE CHART TRENDS -->
+    <div id="tab-allocation" class="tab-content hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4 mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900 mb-1">จัดสรรพอร์ตตามประเภทย่อย (Sub-Category Allocation)</h2>
+            <p class="text-sm text-slate-500">วิเคราะห์เป้าหมายและแนวโน้มรายตัวแบบรายละเอียดตามประเภท ทอง หุ้นต่างประเทศ ฯลฯ</p>
+          </div>
+          <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+            <label class="text-xs font-bold text-slate-600 whitespace-nowrap"><i class="fa-solid fa-calendar-days mr-1"></i> เลือกเดือนวิเคราะห์:</label>
+            <select id="alloc-month-select" onchange="calculateAllocation(false)" class="p-1.5 border border-slate-300 rounded-lg text-xs font-bold outline-none cursor-pointer bg-white min-w-[130px]"></select>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+          <div class="flex justify-between items-center border-b border-slate-200 pb-1.5">
+            <span class="text-xs font-extrabold text-slate-700"><i class="fa-solid fa-filter mr-1 text-blue-600"></i> ตัวกรองเปรียบเทียบประเภทย่อย</span>
+            <div class="space-x-2">
+              <button onclick="toggleSelectAllSubCats(true)" class="text-[10px] bg-white border px-2 py-0.5 rounded text-slate-600 hover:bg-slate-100 font-bold">เลือกทั้งหมด</button>
+              <button onclick="toggleSelectAllSubCats(false)" class="text-[10px] bg-white border px-2 py-0.5 rounded text-slate-600 hover:bg-slate-100 font-bold">เคลียร์ทั้งหมด</button>
+            </div>
+          </div>
+          <div id="alloc-subcat-checkboxes" class="flex flex-wrap gap-3 pt-1"></div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+          <div class="space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-100 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-center border-b border-slate-200 pb-2 mb-3">
+                <h3 class="font-bold text-slate-700 text-sm"><i class="fa-solid fa-crosshairs mr-2"></i>ตั้งเป้าหมายกลุ่มที่เลือก (%)</h3>
+                <button onclick="addNewSubCatTargetPrompt()" class="text-xs text-blue-600 hover:underline font-bold"><i class="fa-solid fa-plus mr-0.5"></i>เพิ่มเป้าหมาย</button>
+              </div>
+              <div class="space-y-3 max-h-[250px] overflow-y-auto pr-1" id="alloc-target-inputs-container"></div>
+            </div>
+            
+            <div class="border-t border-slate-200 pt-3 mt-2">
+              <div class="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-200">
+                <span class="text-xs font-bold text-slate-500">เป้าหมายกลุ่มที่เลือก:</span>
+                <span id="alloc-sum-badge" class="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-emerald-500 text-white">100%</span>
+              </div>
+              <p id="alloc-error-msg" class="text-[11px] text-rose-500 font-bold mt-1.5 hidden">⚠️ สัดส่วนเป้าหมายรวมต้องเท่ากับ 100% พอดีครับ</p>
+            </div>
+          </div>
+
+          <div class="lg:col-span-2 relative border border-slate-200 rounded-xl p-4 min-h-[320px] flex items-center justify-center bg-white shadow-sm">
+            <canvas id="allocationChart"></canvas>
+          </div>
+        </div>
+
+        <div class="mt-6 border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
+          <h3 class="font-bold text-slate-900 text-sm mb-3"><i class="fa-solid fa-chart-area mr-2"></i>แนวโน้มการเติบโตประเภทย่อย</h3>
+          <div class="relative h-[340px] w-full">
+            <canvas id="portfolioTrendChart"></canvas>
+          </div>
+        </div>
+
+        <div class="mt-6 space-y-6">
+          <h3 class="font-bold text-slate-900 text-sm"><i class="fa-solid fa-scale-unbalanced mr-2"></i>วิเคราะห์ความผิดเพี้ยนรายประเภทย่อย</h3>
+          
+          <div class="overflow-x-auto border border-slate-200 rounded-xl">
+            <table class="w-full text-left border-collapse bg-white text-sm">
+              <thead>
+                <tr class="bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-600">
+                  <th class="p-3">ประเภทย่อย (Sub-Category)</th>
+                  <th class="p-3 text-right">เป้าหมาย (%)</th>
+                  <th class="p-3 text-right">ปัจจุบันจริง (บาท)</th>
+                  <th class="p-3 text-right">สัดส่วนจริง (%)</th>
+                  <th class="p-3 text-right">บิดเบือน (%)</th>
+                  <th class="p-3 text-right">เงินที่ต้องปรับ (บาท)</th>
+                </tr>
+              </thead>
+              <tbody id="alloc-table-body" class="font-semibold text-slate-700"></tbody>
+            </table>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 p-5 rounded-xl shadow-inner space-y-2">
+            <h4 class="font-bold text-blue-900 text-sm"><i class="fa-solid fa-compass mr-2"></i>คำแนะนำการปรับสมดุลพอร์ต (Rebalancing)</h4>
+            <div id="alloc-advice-box" class="text-xs font-medium text-blue-800 space-y-1.5 leading-relaxed"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: RETIREMENT SIMULATOR -->
+    <div id="tab-planning" class="tab-content hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <h2 class="text-xl font-bold text-slate-900 mb-1">เครื่องจำลองภาพวันเกษียณ (Retirement Simulator)</h2>
+        <p class="text-sm text-slate-500 mb-6">คำนวณมูลค่าเงินเมื่อหักเงินเฟ้อ และประเมินความพร้อมตามไลฟ์สไตล์หลังเกษียณ</p>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-100">
+            <h3 class="font-bold text-slate-700 text-sm border-b border-slate-200 pb-2"><i class="fa-solid fa-sliders mr-2"></i>ตั้งค่าสมมติฐาน</h3>
+            
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">อายุปัจจุบัน (ปี)</label>
+              <input type="number" id="sim-current-age" value="41" oninput="calculateRetirement(true)" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none focus:border-blue-500">
+            </div>
+            
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">อายุที่จะเกษียณ (ปี)</label>
+              <select id="sim-retire-age" onchange="calculateRetirement(true)" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
+                <option value="55">55 ปี</option>
+                <option value="60" selected>60 ปี</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">จำนวนปีที่คาดว่าจะใช้เงินหลังเกษียณ (ปี)</label>
+              <input type="number" id="sim-life-expectancy" value="20" oninput="calculateRetirement(true)" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none focus:border-blue-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">คาดการณ์เงินเฟ้อเฉลี่ย (% ต่อปี)</label>
+              <input type="number" step="0.1" id="sim-inflation" value="2.5" oninput="calculateRetirement(true)" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none focus:border-blue-500">
+            </div>
+
+            <div class="border-t border-slate-200 pt-3">
+              <label class="block text-xs font-bold text-slate-600 mb-2">เลือกไลฟ์สไตล์หลังเกษียณ</label>
+              <div class="grid grid-cols-1 gap-2">
+                <label class="flex items-center p-2 bg-white border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
+                  <input type="radio" name="sim-lifestyle" value="20000" onchange="calculateRetirement(true)" class="mr-2">
+                  <div>
+                    <p class="text-xs font-bold text-slate-700">โหมดประหยัด</p>
+                    <p class="text-[10px] text-slate-400">~20,000 บ./เดือน</p>
+                  </div>
+                </label>
+                <label class="flex items-center p-2 bg-white border border-blue-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
+                  <input type="radio" name="sim-lifestyle" value="40000" checked onchange="calculateRetirement(true)" class="mr-2">
+                  <div>
+                    <p class="text-xs font-bold text-blue-600">โหมดปานกลาง</p>
+                    <p class="text-[10px] text-slate-400">~40,000 บ./เดือน</p>
+                  </div>
+                </label>
+                <label class="flex items-center p-2 bg-white border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
+                  <input type="radio" name="sim-lifestyle" value="80000" onchange="calculateRetirement(true)" class="mr-2">
+                  <div>
+                    <p class="text-xs font-bold text-purple-600">โหมดพรีเมียม</p>
+                    <p class="text-[10px] text-slate-400">~80,000 บ./เดือน</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="lg:col-span-2 space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-md">
+                <p class="text-slate-400 text-xs font-medium mb-1">สินทรัพย์รวมปัจจุบัน</p>
+                <h3 id="sim-current-wealth" class="text-2xl font-bold">฿0.00</h3>
+                <p class="text-[10px] text-slate-400 mt-2" id="sim-as-of-date">อัปเดต ณ เดือน -</p>
+              </div>
+
+              <div class="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-5 text-white shadow-md">
+                <p class="text-blue-200 text-xs font-medium mb-1">มูลค่าจริง ณ วันเกษียณ (Real Value)</p>
+                <h3 id="sim-future-wealth" class="text-2xl font-bold">฿0.00</h3>
+                <p class="text-[10px] text-blue-200 mt-2" id="sim-inflation-text">หักเงินเฟ้อออก -% ในอีก - ปี</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="bg-white p-5 rounded-2xl border-2 border-amber-200 shadow-sm">
+                <p class="text-xs font-bold text-amber-600 mb-1 uppercase tracking-wide"><i class="fa-solid fa-bullseye mr-1"></i> เป้าหมายเงินเกษียณ</p>
+                <h4 id="sim-target-needed" class="text-2xl font-black text-slate-900">฿0.00</h4>
+                <p class="text-[10px] text-slate-400 mt-1" id="sim-target-desc">คำนวณรวมอัตราเงินเฟ้อสะสมแล้ว</p>
+              </div>
+
+              <div class="bg-white p-5 rounded-2xl border-2 border-blue-200 shadow-sm">
+                <p class="text-xs font-bold text-blue-600 mb-1 uppercase tracking-wide"><i class="fa-solid fa-hand-holding-dollar mr-1"></i> ต้องเก็บเงินเพิ่ม</p>
+                <h4 id="sim-monthly-saving-needed" class="text-2xl font-black text-slate-900">฿0.00 / เดือน</h4>
+                <p class="text-[10px] text-slate-400 mt-1" id="sim-saving-desc">ออมเพิ่มจนถึงอายุเกษียณ</p>
+              </div>
+            </div>
+
+            <div class="bg-white p-6 border border-slate-200 rounded-2xl shadow-sm text-center space-y-4">
+              <div class="inline-block p-3 bg-blue-50 text-blue-600 rounded-full text-2xl mb-1">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+              </div>
+              <div>
+                <p class="text-sm font-medium text-slate-500">หากหยุดออมตั้งแต่วันนี้ เงินที่มีจะอยู่ได้นาน</p>
+                <h2 id="sim-result-years" class="text-4xl font-black text-slate-900 my-2">0 ปี 0 เดือน</h2>
+                <p class="text-xs text-slate-400">คำนวณตามเงินเฟ้อที่เพิ่มค่าใช้จ่ายรายปีหลังเกษียณ</p>
+              </div>
+              
+              <div class="w-full bg-slate-100 rounded-full h-4 overflow-hidden mt-4">
+                <div id="sim-progress-bar" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%"></div>
+              </div>
+              <p id="sim-status-message" class="text-sm font-bold text-slate-600"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: TRANSACTION LOG -->
+    <div id="tab-transactions" class="tab-content hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <h2 class="text-xl font-bold text-slate-900 mb-1">บันทึกประวัติการซื้อขายสินทรัพย์</h2>
+        <p class="text-sm text-slate-500 mb-6">จดบันทึกกิจกรรมย่อยเพื่อเก็บประวัติความเคลื่อนไหวของพอร์ต</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">วันที่รายการ</label>
+            <input type="date" id="tx-date" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">เลือกบัญชี/กองทุน</label>
+            <select id="tx-fund" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">ประเภทรายการ</label>
+            <select id="tx-type" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
+              <option value="BUY">ซื้อ (Buy / Deposit)</option>
+              <option value="SELL">ขาย (Sell / Withdraw)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">จำนวนเงิน (บาท)</label>
+            <input type="number" id="tx-amount" placeholder="0.00" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none">
+          </div>
+          <div class="flex items-end">
+            <button onclick="addTransaction()" class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-sm transition-all whitespace-nowrap">
+              <i class="fa-solid fa-plus mr-1.5"></i>เพิ่มประวัติ
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-between items-center pb-3 gap-2 border-b border-slate-100">
+          <h3 class="font-bold text-slate-900 text-sm"><i class="fa-solid fa-table-list mr-2"></i>รายการประวัติซื้อขาย</h3>
+          <div class="flex items-center space-x-2 w-full sm:w-auto">
+            <label class="text-xs font-bold text-slate-500 whitespace-nowrap">ตัวกรองกองทุน:</label>
+            <select id="tx-filter-select" onchange="renderTransactionsTable()" class="p-1.5 border border-slate-300 rounded-lg text-xs font-semibold outline-none bg-white min-w-[160px] cursor-pointer"></select>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-200 rounded-xl mt-3">
+          <table class="w-full text-left border-collapse bg-white">
+            <thead>
+              <tr class="bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-600">
+                <th class="p-3">วันที่</th>
+                <th class="p-3">บัญชี / กองทุน</th>
+                <th class="p-3">ประเภท</th>
+                <th class="p-3 text-right">จำนวนเงิน</th>
+                <th class="p-3 text-center">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="tx-table-body" class="text-sm font-semibold text-slate-700"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 6: ENTRY FORM WITH GEMINI AI OCR & DYNAMIC NAV -->
+    <div id="tab-entry" class="tab-content hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900">บันทึกยอดเงินประจำเดือน & อัปเดต NAV</h2>
+          <p class="text-sm text-slate-500">อัปเดตค่า NAV หรือจำนวนหน่วย ระบบจะคำนวณมูลค่ารวมให้อัตโนมัติ</p>
+        </div>
+        <div>
+          <input type="month" id="entry-month" onchange="changeEntryMonth()" class="p-3 border-2 border-blue-500 rounded-xl text-md font-bold text-blue-700 outline-none cursor-pointer bg-blue-50">
+        </div>
+      </div>
+
+      <!-- Gemini AI Image Upload Scanner Section -->
+      <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-3 shadow-sm">
+        <div class="flex items-center space-x-3">
+          <div class="p-2.5 bg-blue-600 text-white rounded-lg shadow-md"><i class="fa-solid fa-wand-magic-sparkles text-lg"></i></div>
+          <div>
+            <h4 class="text-sm font-bold text-slate-800">สแกนอ่าน NAV / พอร์ต ด้วย Gemini 3.1 Flash-Lite</h4>
+            <p class="text-xs text-slate-500">รองรับสแกนภาพกองทุนทั่วไป และภาพพอร์ตหุ้น (รวมเงินสด+หุ้นให้อัตโนมัติ)</p>
+          </div>
+        </div>
+        <label class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-md whitespace-nowrap">
+          <i class="fa-solid fa-camera mr-1.5"></i> สแกนภาพสกรีนช็อต
+          <input type="file" id="nav-image-input" accept="image/*" multiple onchange="processImageWithGemini(event)" class="hidden">
+        </label>
+      </div>
+
+      <div id="entry-carry-forward-warning" class="hidden bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl flex items-start space-x-3">
+        <i class="fa-solid fa-info-circle mt-1"></i>
+        <div>
+          <h4 class="font-bold">ข้อมูลจากเดือนก่อนหน้า</h4>
+          <p class="text-sm">เดือนที่คุณเลือกยังไม่มีข้อมูล ระบบจึงดึงยอดล่าสุดมาแสดงเป็นแม่แบบให้ <b>จะยังไม่เซฟจนกว่าจะมีการแก้ไขตัวเลข</b></p>
+        </div>
+      </div>
+
+      <div id="entry-summary-panel" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div class="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-4 text-white shadow-lg">
+          <p class="text-xs text-slate-300 font-bold mb-1">ยอดรวมของเดือน</p>
+          <h3 id="entry-month-total" class="text-2xl font-bold">฿0.00</h3>
+          <div id="entry-month-diff" class="text-xs mt-2 font-semibold">เทียบเดือนก่อน: 0.00 บาท (0.00%)</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <p class="text-xs font-bold text-emerald-600 mb-1">สภาพคล่องสูง</p>
+          <h3 id="entry-cat-total-high" class="text-xl font-bold">฿0.00</h3>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <p class="text-xs font-bold text-amber-600 mb-1">สภาพคล่องปานกลาง</p>
+          <h3 id="entry-cat-total-med" class="text-xl font-bold">฿0.00</h3>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <p class="text-xs font-bold text-purple-600 mb-1">สภาพคล่องต่ำ</p>
+          <h3 id="entry-cat-total-low" class="text-xl font-bold">฿0.00</h3>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <p class="text-xs font-bold text-rose-600 mb-1">สะสมประกัน</p>
+          <h3 id="entry-cat-total-ins" class="text-xl font-bold">฿0.00</h3>
+        </div>
+      </div>
+
+      <div id="entry-form-container" class="space-y-6"></div>
+
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div id="entry-status-text" class="text-sm font-bold text-slate-500"><i class="fa-regular fa-clock mr-1"></i> Status: Ready</div>
+        <button id="btn-manual-save" onclick="saveMonthlyData(event)" class="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 transition-all w-full sm:w-auto">
+          <i class="fa-solid fa-floppy-disk mr-2"></i> บันทึกข้อมูล (Manual Save)
+        </button>
+      </div>
+    </div>
+
+    <!-- TAB 7: SETTINGS & GEMINI API KEY SETUP -->
+    <div id="tab-setup" class="tab-content hidden space-y-6">
+      
+      <!-- Gemini API Key Configuration Panel -->
+      <div class="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-md border border-slate-800 space-y-4">
+        <div class="flex items-center space-x-3">
+          <div class="p-2 bg-blue-500/20 text-blue-400 rounded-lg"><i class="fa-solid fa-key text-xl"></i></div>
+          <div>
+            <h3 class="text-lg font-bold">ตั้งค่า Gemini API Key (สำหรับสแกนอ่านภาพ NAV)</h3>
+            <p class="text-xs text-slate-400">คีย์จะถูกเก็บบนเครื่องของคุณเอง (LocalStorage) ปลอดภัย 100%</p>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 pt-2">
+          <div class="relative flex-1">
+            <input type="password" id="gemini-api-key-input" placeholder="ป้อน AIzaSy..." class="w-full p-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-sm font-mono text-emerald-400 outline-none focus:border-blue-500 pr-10">
+            <button onclick="toggleApiKeyVisibility()" class="absolute right-3 top-3 text-slate-400 hover:text-white"><i class="fa-solid fa-eye" id="toggle-key-icon"></i></button>
+          </div>
+          <button onclick="saveApiKey()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-md transition-all whitespace-nowrap">
+            <i class="fa-solid fa-floppy-disk mr-1.5"></i> บันทึก Key
+          </button>
+          <button onclick="clearApiKey()" class="px-4 py-2.5 bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white rounded-xl font-bold text-sm transition-all whitespace-nowrap">
+            <i class="fa-solid fa-trash-can mr-1"></i> ลบ
+          </button>
+        </div>
+
+        <div id="api-key-status-badge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+          <i class="fa-solid fa-triangle-exclamation mr-1.5"></i> ยังไม่ได้บันทึก API Key
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 mb-1">เพิ่ม/ลบ รายชื่อบัญชีและกองทุน</h2>
+        <p class="text-sm text-slate-500 mb-4">เพิ่มชื่อกองทุน พร้อมระบุ <b>รหัสกองทุน (Symbol)</b> เพื่อให้ AI นำมาแมตช์ได้ถูกต้อง</p>
+
+        <!-- Form Input Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <div class="md:col-span-3">
+            <label class="block text-xs font-bold text-slate-600 mb-1">กลุ่มสภาพคล่อง</label>
+            <select id="new-fund-cat" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
+              <option value="high">สภาพคล่องสูง</option>
+              <option value="med">สภาพคล่องปานกลาง</option>
+              <option value="low">สภาพคล่องต่ำ</option>
+              <option value="ins">ประกัน / อื่นๆ</option>
+            </select>
+          </div>
+          <div class="md:col-span-4">
+            <label class="block text-xs font-bold text-slate-600 mb-1">ชื่อเรียกบัญชี/กองทุน</label>
+            <input type="text" id="new-fund-name" placeholder="เช่น กองทุนตราสารหนี้กสิกร" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
+          </div>
+          <div class="md:col-span-3">
+            <label class="block text-xs font-bold text-blue-700 mb-1"><i class="fa-solid fa-tag mr-1"></i>รหัสกองทุน (Symbol / Code)</label>
+            <input type="text" id="new-fund-symbol" placeholder="เช่น K-SF-SSF หรือ SCBKEQTG" class="w-full p-2.5 border border-blue-300 rounded-lg text-sm font-mono font-bold text-blue-900 outline-none bg-blue-50 uppercase">
+          </div>
+          <div class="md:col-span-2 flex items-end">
+            <button onclick="addNewFund()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold shadow-sm transition-all text-sm whitespace-nowrap">
+              <i class="fa-solid fa-plus mr-1.5"></i>เพิ่มกองทุน
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4" id="setup-list-container"></div>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <h3 class="text-lg font-bold text-slate-900 mb-1">จัดการข้อมูล (Data Management)</h3>
+        <p class="text-sm text-slate-500 mb-4">สำรองข้อมูล นำเข้าเพื่อใช้งานต่อ หรือส่งออกเป็นไฟล์ตาราง</p>
+
+        <!-- Local Storage Capacity Indicator Bar (Max 5MB) -->
+        <div class="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs font-bold text-slate-700 gap-1">
+            <span class="flex items-center space-x-1.5">
+              <i class="fa-solid fa-hard-drive text-blue-600"></i>
+              <span>พื้นที่จัดเก็บข้อมูลในเครื่อง (LocalStorage):</span>
+            </span>
+            <span id="db-storage-text" class="font-mono text-blue-700">0.00 KB / 5.00 MB (0.00%)</span>
+          </div>
+          <div class="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+            <div id="db-storage-bar" class="bg-blue-600 h-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+        </div>
+        
+        <div class="flex flex-wrap gap-3">
+          <button onclick="backupToJson()" class="px-5 py-3 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-bold shadow-sm transition-all">
+            <i class="fa-solid fa-database mr-2"></i> Backup JSON
+          </button>
+
+          <label class="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-sm cursor-pointer transition-all">
+            <i class="fa-solid fa-upload mr-2"></i> Restore JSON
+            <input type="file" id="json-restore-input" accept=".json" onchange="restoreFromJson()" class="hidden">
+          </label>
+
+          <button onclick="exportToExcel()" class="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-sm transition-all">
+            <i class="fa-solid fa-file-excel mr-2"></i> Export Excel
+          </button>
+        </div>
+      </div>
+      
+      <div class="text-center mt-8">
+        <button onclick="factoryReset()" class="text-xs text-slate-400 hover:text-rose-500 underline">
+          <i class="fa-solid fa-triangle-exclamation mr-1"></i> ล้างข้อมูลทั้งหมดในระบบ (ลบถาวร)
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Global Toast -->
+  <div id="global-toast" class="toast">
+    <i class="fa-solid fa-circle-check mr-2"></i> <span id="toast-message">Success</span>
+  </div>
+
+  <!-- JavaScript Modules (เรียกใช้ตามลำดับ Dependencies) -->
+  <script src="./config-store.js"></script>
+  <script src="./api-gemini.js"></script>
+  <script src="./modules-views.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

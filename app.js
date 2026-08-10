@@ -1,187 +1,75 @@
-// ================= GEMINI API KEY MANAGEMENT =================
-function getStoredApiKey() { return localStorage.getItem('GEMINI_API_KEY') || ''; }
-
-function saveApiKey() {
-  const input = document.getElementById('gemini-api-key-input');
-  if(!input) return;
-  const key = input.value.trim();
-  if(!key) return alert('กรุณากรอก API Key ก่อนบันทึก');
-  localStorage.setItem('GEMINI_API_KEY', key);
-  updateApiKeyStatusBadge();
-  showToast('บันทึก Gemini API Key เรียบร้อยแล้ว');
+// ================= SERVICE WORKER & PWA INSTALL =================
+let deferredPrompt;
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('Service Worker Registered Successfully!'))
+      .catch(err => console.error('Service Worker Registration Failed:', err));
+  });
 }
 
-function clearApiKey() {
-  if(confirm('ยืนยันลบ Gemini API Key ในเครื่องหรือไม่?')) {
-    localStorage.removeItem('GEMINI_API_KEY');
-    const input = document.getElementById('gemini-api-key-input');
-    if(input) input.value = '';
-    updateApiKeyStatusBadge();
-    showToast('ลบ API Key เรียบร้อยแล้ว');
-  }
-}
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const installBanner = document.getElementById('pwa-install-banner');
+  if (installBanner) installBanner.classList.remove('hidden');
+});
 
-function toggleApiKeyVisibility() {
-  const input = document.getElementById('gemini-api-key-input');
-  const icon = document.getElementById('toggle-key-icon');
-  if(!input || !icon) return;
-  if (input.type === 'password') {
-    input.type = 'text';
-    icon.classList.replace('fa-eye', 'fa-eye-slash');
-  } else {
-    input.type = 'password';
-    icon.classList.replace('fa-eye-slash', 'fa-eye');
-  }
-}
-
-function updateApiKeyStatusBadge() {
-  const badge = document.getElementById('api-key-status-badge');
-  const input = document.getElementById('gemini-api-key-input');
-  const key = getStoredApiKey();
-
-  if(input && key) input.value = key;
-
-  if(badge) {
-    if(key) {
-      badge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
-      badge.innerHTML = `<i class="fa-solid fa-circle-check mr-1.5"></i> พร้อมใช้งาน Gemini API Key`;
-    } else {
-      badge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30";
-      badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1.5"></i> ยังไม่ได้บันทึก API Key`;
-    }
-  }
-}
-
-// ================= GEMINI AI OCR SCAN =================
-async function processImageWithGemini(event) {
-  const files = event.target.files;
-  if (!files || files.length === 0) return;
-
-  const apiKey = getStoredApiKey();
-  if (!apiKey) {
-    alert('กรุณากรอกและบันทึก Gemini API Key ในแท็บ "ตั้งค่า" ก่อนเปิดใช้งานสแกนภาพครับ');
-    switchTab('tab-setup');
-    return;
-  }
-
-  showToast(`กำลังสแกนรูปภาพจำนวน ${files.length} ภาพ ด้วย Gemini 3.1 Flash-Lite AI...`);
-
-  const readFileAsBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({
-        base64Data: reader.result.split(',')[1],
-        mimeType: file.type || 'image/jpeg'
-      });
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+function installPWA() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === 'accepted') {
+        const installBanner = document.getElementById('pwa-install-banner');
+        if (installBanner) installBanner.classList.add('hidden');
+      }
+      deferredPrompt = null;
     });
-  };
-
-  try {
-    let matchedCount = 0;
-
-    for (let file of files) {
-      const { base64Data, mimeType } = await readFileAsBase64(file);
-
-      const promptText = `
-        Analyze this portfolio/mutual fund image.
-        Return ONLY a clean JSON object with two fields:
-        1. "items": Array of objects for mutual funds/symbols with NAV or Amount [{"symbol": "K-SF-SSF", "nav": 10.45, "amount": 10000}]
-        2. "portfolio": Object for portfolio breakdown if present (e.g. {"cash": 86172.96, "stock": 157320.00})
-
-        Return strictly valid JSON syntax without markdown blocks:
-        {"items": [], "portfolio": {"cash": 0, "stock": 0}}
-      `;
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: promptText },
-              { inline_data: { mime_type: mimeType, data: base64Data } }
-            ]
-          }]
-        })
-      });
-
-      const resData = await response.json();
-      if (resData.error) continue;
-
-      const rawText = resData.candidates[0].content.parts[0].text.trim();
-      const jsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsedData = JSON.parse(jsonStr);
-
-      if (parsedData.portfolio) {
-        const cashVal = parseFloat(parsedData.portfolio.cash) || 0;
-        const stockVal = parseFloat(parsedData.portfolio.stock) || 0;
-        const totalStockPlusCash = cashVal + stockVal;
-
-        if (totalStockPlusCash > 0) {
-          const matchedStockFund = db.funds.find(f => {
-            const fSymbol = (f.symbol || '').toUpperCase().trim();
-            const fName = (f.name || '').toUpperCase().trim();
-            return fSymbol === 'หุ้น' || fName === 'หุ้น' || fSymbol === 'STOCK' || fName.includes('หุ้น');
-          });
-
-          if (matchedStockFund) {
-            const totalInput = document.getElementById(`entry-${matchedStockFund.id}`);
-            if (totalInput) {
-              totalInput.value = formatNumber(totalStockPlusCash);
-              autoCalcMonthlyFund(matchedStockFund.id, 'total');
-              matchedCount++;
-            }
-          }
-        }
-      }
-
-      if (Array.isArray(parsedData.items) && parsedData.items.length > 0) {
-        parsedData.items.forEach(item => {
-          const scannedCode = (item.symbol || '').toUpperCase().trim();
-          const navVal = parseFloat(item.nav);
-          const amountVal = parseFloat(item.amount);
-
-          if (scannedCode) {
-            const matchedFund = db.funds.find(f => {
-              const fSymbol = (f.symbol || '').toUpperCase().trim();
-              const fName = (f.name || '').toUpperCase().trim();
-              return fSymbol === scannedCode || fName === scannedCode || scannedCode.includes(fSymbol) || fSymbol.includes(scannedCode);
-            });
-
-            if (matchedFund) {
-              if (!isNaN(navVal) && navVal > 0) {
-                const navEl = document.getElementById(`entry-nav-${matchedFund.id}`);
-                if (navEl) {
-                  navEl.value = navVal;
-                  autoCalcMonthlyFund(matchedFund.id, 'nav');
-                  matchedCount++;
-                }
-              } else if (!isNaN(amountVal) && amountVal > 0) {
-                const totalEl = document.getElementById(`entry-${matchedFund.id}`);
-                if (totalEl) {
-                  totalEl.value = formatNumber(amountVal);
-                  autoCalcMonthlyFund(matchedFund.id, 'total');
-                  matchedCount++;
-                }
-              }
-            }
-          }
-        });
-      }
-    }
-
-    if (matchedCount > 0) {
-      showToast(`อัปเดตข้อมูลสำเร็จรวม ${matchedCount} รายการ!`);
-    } else {
-      alert('สแกนสำเร็จแต่ไม่พบรายการที่ตรงกับ Symbol ในระบบ กรุณาตรวจสอบแท็บตั้งค่า');
-    }
-
-  } catch (err) {
-    console.error(err);
-    alert('เกิดข้อผิดพลาดในการประมวลผล Gemini AI: ' + err.message);
-  } finally {
-    event.target.value = ''; 
   }
 }
+
+// ================= TAB ROUTING & CONTROLLER =================
+function switchTab(tabId) {
+  if (currentTab === 'tab-entry' && tabId !== 'tab-entry' && entryDirty) {
+    clearTimeout(autoSaveTimer);
+    saveEntryMonth(activeEntryMonth, { silent: true });
+  }
+  currentTab = tabId;
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('[id^="btn-tab-"]').forEach(btn => {
+    btn.classList.remove('bg-white', 'shadow-sm', 'text-blue-700');
+    btn.classList.add('text-slate-600');
+  });
+  
+  const activeContent = document.getElementById(tabId);
+  if(activeContent) activeContent.classList.remove('hidden');
+  
+  const activeBtn = document.getElementById('btn-' + tabId);
+  if(activeBtn) {
+    activeBtn.classList.add('bg-white', 'shadow-sm', 'text-blue-700');
+    activeBtn.classList.remove('text-slate-600');
+  }
+
+  if (tabId === 'tab-setup') { renderSetupTab(); updateApiKeyStatusBadge(); }
+  if (tabId === 'tab-entry') initEntryTab();
+  if (tabId === 'tab-compare') initCompareTab();
+  if (tabId === 'tab-charts') initChartsTab();
+  if (tabId === 'tab-planning') initPlanningTab();
+  if (tabId === 'tab-transactions') initTransactionsTab();
+  if (tabId === 'tab-allocation') initAllocationTab();
+}
+
+function refreshCurrentTab() {
+  checkEmptyState();
+  if (currentTab === 'tab-setup') { renderSetupTab(); updateApiKeyStatusBadge(); }
+  if (currentTab === 'tab-entry') initEntryTab();
+  if (currentTab === 'tab-compare') initCompareTab();
+  if (currentTab === 'tab-charts') initChartsTab();
+  if (currentTab === 'tab-planning') initPlanningTab();
+  if (currentTab === 'tab-transactions') initTransactionsTab();
+  if (currentTab === 'tab-allocation') initAllocationTab();
+}
+
+// ================= APP INITIALIZATION =================
+loadDB();
+switchTab('tab-compare');
