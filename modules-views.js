@@ -771,19 +771,17 @@ function monthToTotalMonths(monthStr) {
   return year * 12 + month;
 }
 
-// ฟังก์ชันคำนวณผลตอบแทนย้อนหลัง (ปรับปรุง Logic N/A ล่าสุด)
+// ฟังก์ชันคำนวณผลตอบแทนย้อนหลัง (แก้ไขสูตรให้คำนวณอัตราการเติบโตตามจริง)
 function calculatePeriodReturns(filterId, endMonthStr) {
   const allMonths = Object.keys(db.records).sort();
   if (!allMonths.includes(endMonthStr)) return null;
 
   const [endYear, endMonth] = endMonthStr.split('-').map(Number);
-  
   const endMV = getMarketValueByFilter(filterId, endMonthStr);
   const endCost = getCostBasisByFilter(filterId, endMonthStr);
 
-  if (endCost <= 0) return null;
+  if (endMV <= 0 && endCost <= 0) return null;
 
-  // หาเดือนแรกสุดที่มีการบันทึกข้อมูลและมีมูลค่าจริงในระบบ
   const inceptionMonth = allMonths.find(m => {
     return getMarketValueByFilter(filterId, m) > 0 || getCostBasisByFilter(filterId, m) > 0;
   });
@@ -805,38 +803,23 @@ function calculatePeriodReturns(filterId, endMonthStr) {
     const targetM = targetTotalMonths - (targetYear * 12);
     const targetMonthStr = `${targetYear}-${String(targetM).padStart(2, '0')}`;
 
-    // ถ้าเดือนย้อนหลังย้อนไปไกลกว่าเดือนแรกที่มีข้อมูล (inceptionMonth) 
-    // ให้ถือว่าไม่มีข้อมูลก่อนหน้านั้นเลย -> แสดง N/A
+    // หากย้อนหลังเกินเดือนแรกที่มีข้อมูล ให้แสดง N/A
     if (targetMonthStr < inceptionMonth) {
-      results[p.key] = {
-        returnPct: null,
-        matchedMonth: null,
-        actualMonthsDiff: 0,
-        isAnnualized: p.isAnnualized,
-        label: p.name
-      };
+      results[p.key] = { returnPct: null, matchedMonth: null, actualMonthsDiff: 0, isAnnualized: p.isAnnualized, label: p.name };
       return;
     }
 
-    // ถ้าช่วงเวลามีข้อมูลรองรับ (ตั้งแต่ inceptionMonth เป็นต้นมา) ให้ใช้ Logic เดิม
-    let startMonthToUse = targetMonthStr;
-    if (!allMonths.includes(startMonthToUse)) {
-      startMonthToUse = inceptionMonth;
-    }
-
+    // หาเดือนที่มีข้อมูลใกล้เคียงที่สุดที่ไม่เกิน targetMonthStr
+    let startMonthToUse = allMonths.filter(m => m <= targetMonthStr).pop() || inceptionMonth;
     const startMV = getMarketValueByFilter(filterId, startMonthToUse);
-    const startCost = getCostBasisByFilter(filterId, startMonthToUse);
 
-    let returnPct = 0;
-    const netGain = endMV - endCost; 
-
-    if (startCost === 0 || startMonthToUse === inceptionMonth) {
-      returnPct = (netGain / endCost) * 100;
-    } else {
-      const addedCost = endCost - startCost;
-      const baseCapital = startCost + addedCost;
-      returnPct = baseCapital > 0 ? (netGain / baseCapital) * 100 : 0;
+    if (startMV <= 0) {
+      results[p.key] = { returnPct: null, matchedMonth: null, actualMonthsDiff: 0, isAnnualized: p.isAnnualized, label: p.name };
+      return;
     }
+
+    // คำนวณผลตอบแทนจากอัตราการเติบโตของมูลค่าพอร์ตระหว่าง 2 ช่วงเวลา
+    let returnPct = ((endMV - startMV) / startMV) * 100;
 
     const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(startMonthToUse);
     if (p.isAnnualized && actualMonthsDiff > 12) {
