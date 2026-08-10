@@ -2051,8 +2051,8 @@
       const adjustedEndVal = endVal - netFlow;
       const hpr = ((adjustedEndVal / startVal) - 1) * 100;
 
-      // 6. กรณี 3 ปีขึ้นไป (monthsBack >= 36) แปลงเป็นอัตราต่อปี (Annualized / CAGR)
-      if (monthsBack >= 36) {
+      // 6. กรณี 2 ปีขึ้นไป (monthsBack >= 24) แปลงเป็นอัตราต่อปี (Annualized / CAGR)
+      if (monthsBack >= 24) {
         const years = monthsBack / 12;
         if (adjustedEndVal > 0) {
           const cagr = (Math.pow(adjustedEndVal / startVal, 1 / years) - 1) * 100;
@@ -2121,7 +2121,7 @@
           { label: '3 เดือนย้อนหลัง', months: 3, isAnnualized: false },
           { label: '6 เดือนย้อนหลัง', months: 6, isAnnualized: false },
           { label: '1 ปีย้อนหลัง', months: 12, isAnnualized: false },
-          { label: '2 ปีย้อนหลัง', months: 24, isAnnualized: false }
+          { label: '2 ปีย้อนหลัง (ต่อปี)', months: 24, isAnnualized: true }
         ];
 
         const targetEndMonth = endM;
