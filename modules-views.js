@@ -31,6 +31,12 @@ const chartValueLabelsPlugin = {
 };
 Chart.register(chartValueLabelsPlugin);
 
+// ================= HELPER FUNCTIONS =================
+function parseYearMonthToDate(ymStr) {
+  const [y, m] = ymStr.split('-').map(Number);
+  return new Date(y, m - 1, 1);
+}
+
 // ================= SETUP MODULE =================
 function renderSetupTab() {
   const container = document.getElementById('setup-list-container');
@@ -771,19 +777,13 @@ function monthToTotalMonths(monthStr) {
   return year * 12 + month;
 }
 
-// ฟังก์ชันคำนวณผลตอบแทนย้อนหลัง (สูตร: กำไรปัจจุบัน - กำไรในอดีต / ต้นทุนเฉลี่ยของช่วงเวลา)
+// ฟังก์ชันคำนวณผลตอบแทนย้อนหลังด้วยวิธี Modified Dietz Method
 function calculatePeriodReturns(filterId, endMonthStr) {
   const allMonths = Object.keys(db.records).sort();
   if (!allMonths.includes(endMonthStr)) return null;
 
   const [endYear, endMonth] = endMonthStr.split('-').map(Number);
-  
-  // ปลายทาง (End)
   const endMV = getMarketValueByFilter(filterId, endMonthStr);
-  const endCost = getCostBasisByFilter(filterId, endMonthStr);
-  const endProfit = endMV - endCost;
-
-  if (endCost <= 0) return null;
 
   const inceptionMonth = allMonths.find(m => {
     return getMarketValueByFilter(filterId, m) > 0 || getCostBasisByFilter(filterId, m) > 0;
@@ -806,36 +806,80 @@ function calculatePeriodReturns(filterId, endMonthStr) {
     const targetM = targetTotalMonths - (targetYear * 12);
     const targetMonthStr = `${targetYear}-${String(targetM).padStart(2, '0')}`;
 
-    // ย้อนหลังเกินข้อมูลที่มี ให้แสดง N/A
     if (targetMonthStr < inceptionMonth) {
       results[p.key] = { returnPct: null, matchedMonth: null, actualMonthsDiff: 0, isAnnualized: p.isAnnualized, label: p.name };
       return;
     }
 
     let startMonthToUse = allMonths.filter(m => m <= targetMonthStr).pop() || inceptionMonth;
-    
-    // ต้นทาง (Start)
     const startMV = getMarketValueByFilter(filterId, startMonthToUse);
-    const startCost = getCostBasisByFilter(filterId, startMonthToUse);
-    const startProfit = startMV - startCost;
 
-    // 1. ผลกำไรที่ต่างกันในช่วงเวลา = กำไรปลายทาง - กำไรต้นทาง
-    const profitDiff = endProfit - startProfit;
-
-    // 2. ต้นทุนเฉลี่ยของช่วงเวลา = (ต้นทุนต้นทาง + ต้นทุนปลายทาง) / 2
-    const avgCost = (startCost + endCost) / 2;
-
-    if (avgCost <= 0) {
+    if (startMV <= 0) {
       results[p.key] = { returnPct: null, matchedMonth: null, actualMonthsDiff: 0, isAnnualized: p.isAnnualized, label: p.name };
       return;
     }
 
-    // 3. ผลตอบแทน = (กำไรช่วงเวลา / ต้นทุนเฉลี่ย) * 100
-    let returnPct = (profitDiff / avgCost) * 100;
+    // กำหนดวันเริ่มต้น (BMV Date) และวันสิ้นสุด (EMV Date)
+    const startDate = parseYearMonthToDate(startMonthToUse);
+    const endDate = parseYearMonthToDate(endMonthStr);
+    const totalDays = Math.max(1, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    let netCashFlow = 0; // ค่า F (กระแสเงินสดสุทธิ)
+    let weightedCashFlow = 0; // ค่า SUM(C_i * W_i)
+
+    // ดึงประวัติธุรกรรมระหว่างช่วงเวลา
+    const sortedTx = [...db.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+    sortedTx.forEach(t => {
+      const txMonth = t.date.substring(0, 7);
+      if (txMonth > startMonthToUse && txMonth <= endMonthStr) {
+        let isMatch = false;
+
+        if (filterId === 'ALL_PORTFOLIO') {
+          isMatch = true;
+        } else if (filterId.startsWith('CAT_')) {
+          const catId = filterId.replace('CAT_', '');
+          const fund = db.funds.find(f => f.id === t.fundId);
+          if (fund && fund.catId === catId) isMatch = true;
+        } else if (filterId.startsWith('SUBCAT_')) {
+          const subName = filterId.replace('SUBCAT_', '');
+          const fund = db.funds.find(f => f.id === t.fundId);
+          if (fund && fund.subCategories) {
+            const subMatch = fund.subCategories.find(s => s.name.trim() === subName);
+            if (subMatch) isMatch = true;
+          }
+        } else if (t.fundId === filterId) {
+          isMatch = true;
+        }
+
+        if (isMatch) {
+          const txDate = new Date(t.date);
+          // C_i: ซื้อ (ฝากเข้า) = บวก, ขาย (ถอนออก) = ลบ
+          const Ci = t.type === 'BUY' ? t.amount : -t.amount;
+          
+          // คำนวณวันคงเหลือในระบบ และน้ำหนักเวลา (Wi)
+          const daysRemaining = Math.max(0, (endDate.getTime() - txDate.getTime()) / (1000 * 60 * 60 * 24));
+          const Wi = Math.min(1, Math.max(0, daysRemaining / totalDays));
+
+          netCashFlow += Ci;
+          weightedCashFlow += (Ci * Wi);
+        }
+      });
+    });
+
+    // คำนวณตามสูตร Modified Dietz: R = (EMV - BMV - F) / (BMV + SUM(Ci * Wi))
+    const numerator = endMV - startMV - netCashFlow;
+    const denominator = startMV + weightedCashFlow;
+
+    if (denominator <= 0) {
+      results[p.key] = { returnPct: null, matchedMonth: null, actualMonthsDiff: 0, isAnnualized: p.isAnnualized, label: p.name };
+      return;
+    }
+
+    let returnPct = (numerator / denominator) * 100;
 
     const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(startMonthToUse);
 
-    // 4. หากเป็นรายการย้อนหลังเกิน 1 ปี (และเซตให้ annualized) ให้หารด้วยจำนวนปี
+    // กรณี > 1 ปี ปรับเป็นต่อปี
     if (p.isAnnualized && actualMonthsDiff > 12) {
       const yearsDiff = actualMonthsDiff / 12;
       returnPct = returnPct / yearsDiff;
