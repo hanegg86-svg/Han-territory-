@@ -241,8 +241,8 @@
           </div>
         </div>
 
-        <!-- การ์ดสรุปมูลค่าปัจจุบัน & ต้นทุน -->
-        <div id="chart-latest-summary" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4"></div>
+        <!-- การ์ดสรุปผลต่างช่วงเวลา, มูลค่าปัจจุบัน & ต้นทุน -->
+        <div id="chart-latest-summary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"></div>
 
         <!-- การ์ดสรุปผลตอบแทนย้อนหลัง (คำนวณแบบรวมต้นทุนสะสม) -->
         <div class="space-y-2">
@@ -1285,7 +1285,7 @@
       setEntryStatus(renderUsingCarryForward ? `<i class="fa-solid fa-info-circle mr-1"></i> โหมดแก้ไข (ข้อมูลยังไม่ถูกบันทึก)` : `<i class="fa-solid fa-check mr-1"></i> ข้อมูลในระบบล่าสุด`);
     }
 
-    // Hybrid Direct Gemini 3.1 Flash-Lite AI OCR Processing (สแกนกองทุนทั่วไป + พอร์ตหุ้นรวมเงินสด)
+    // Hybrid Direct Gemini 3.1 Flash-Lite AI OCR Processing
     async function processImageWithGemini(event) {
       const files = event.target.files;
       if (!files || files.length === 0) return;
@@ -1347,7 +1347,6 @@
           const jsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
           const parsedData = JSON.parse(jsonStr);
 
-          // 1. จัดการหน้าพอร์ตหุ้น (ถ้ามี "เงินสด" + "หุ้น" ในรูป ให้บวกกันแล้วลงช่อง "หุ้น")
           if (parsedData.portfolio) {
             const cashVal = parseFloat(parsedData.portfolio.cash) || 0;
             const stockVal = parseFloat(parsedData.portfolio.stock) || 0;
@@ -1371,7 +1370,6 @@
             }
           }
 
-          // 2. จัดการรูปกองทุนรวมปกติ (สแกน NAV หรือ ยอดเงินตาม Symbol)
           if (Array.isArray(parsedData.items) && parsedData.items.length > 0) {
             parsedData.items.forEach(item => {
               const scannedCode = (item.symbol || '').toUpperCase().trim();
@@ -1842,7 +1840,6 @@
       return closestMonth;
     }
 
-    // ปรับแก้ไขสูตรคำนวณผลตอบแทนย้อนหลังให้ถูกต้อง ไม่ติดลบผิดพลาดจากการเพิ่มเงินต้น
     function calculatePeriodReturns(filterId, endMonthStr) {
       const allMonths = Object.keys(db.records).sort();
       if (!allMonths.includes(endMonthStr)) return null;
@@ -1884,7 +1881,6 @@
           } else {
             const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(matchedMonth);
             
-            // คำนวณกำไรสะสมที่เพิ่มขึ้นเทียบกับฐานเงินลงทุนสะสมรวมที่ใช้จริงในช่วงนั้น
             const netGainInPeriod = (endMV - endCost) - (startCost > 0 ? (startMV - startCost) : 0);
             const addedCostInPeriod = endCost - startCost;
             const baseCapital = startCost + addedCostInPeriod; 
@@ -1938,15 +1934,28 @@
         costValues.push(getCostBasisByFilter(filterId, m));
       });
 
+      const startMV = marketValues[0] || 0;
       const latestMV = marketValues[marketValues.length - 1] || 0;
       const latestCost = costValues[costValues.length - 1] || 0;
+      
+      // คำนวณผลต่างระหว่างช่วงเวลา (สิ้นสุด - เริ่มต้น)
+      const periodDiff = latestMV - startMV;
+      const periodDiffPct = startMV > 0 ? (periodDiff / startMV) * 100 : 0;
+      const isPeriodPos = periodDiff >= 0;
+
+      // คำนวณผลกำไรเทียบกับต้นทุน
       const latestProfit = latestMV - latestCost;
       const latestProfitPct = latestCost > 0 ? (latestProfit / latestCost) * 100 : 0;
 
       if(summaryContainer) {
         summaryContainer.innerHTML = `
           <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm text-center">
-            <p class="text-xs font-bold text-blue-600 mb-1">มูลค่าปัจจุบัน</p>
+            <p class="text-xs font-bold text-slate-500 mb-1">การเปลี่ยนแปลงช่วงเวลา</p>
+            <h4 class="text-lg font-black ${isPeriodPos ? 'text-emerald-600' : 'text-rose-600'}">${isPeriodPos ? '+' : ''}${formatNumber(periodDiff)}</h4>
+            <p class="text-[10px] font-bold ${isPeriodPos ? 'text-emerald-600' : 'text-rose-600'} mt-0.5">${isPeriodPos ? '+' : ''}${periodDiffPct.toFixed(2)}%</p>
+          </div>
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm text-center">
+            <p class="text-xs font-bold text-blue-600 mb-1">มูลค่าปัจจุบัน (${endM})</p>
             <h4 class="text-lg font-black text-slate-800">฿${formatNumber(latestMV)}</h4>
           </div>
           <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm text-center">
@@ -2782,33 +2791,27 @@
       if (currentTab === 'tab-allocation') initAllocationTab();
     }
 
-    // ฟังก์ชันเช็คว่าเป็นบัญชีออมทรัพย์/เผื่อเรียกทั่วไป ที่ต้องการให้อัปเดตต้นทุนเท่ากับมูลค่าปัจจุบันอัตโนมัติหรือไม่
     function isAutoCostSavingsFund(fund) {
       if (!fund) return false;
       const name = (fund.name || '').toLowerCase();
       const symbol = (fund.symbol || '').toLowerCase();
 
-      // ยกเว้น e-saving, esaving, youtrip ให้กรอกต้นทุนเองตามปกติ
       if (name.includes('esaving') || name.includes('e-saving') || name.includes('youtrip') ||
           symbol.includes('esaving') || symbol.includes('e-saving') || symbol.includes('youtrip')) {
         return false;
       }
 
-      // หากมีคำว่า "ออมทรัพย์" หรือ "เผื่อเรียก" ให้เซตต้นทุน = มูลค่าปัจจุบัน อัตโนมัติ
       return name.includes('ออมทรัพย์') || name.includes('เผื่อเรียก') || 
              symbol.includes('ออมทรัพย์') || symbol.includes('เผื่อเรียก');
     }
 
-    // ฟังก์ชันคำนวณต้นทุนสะสมรายกองทุน (รวมระบบ Auto Cost สำหรับ ออมทรัพย์/เผื่อเรียก)
     function calculateCumulativeCost(fundId, targetMonth) {
       const fund = db.funds.find(f => f.id === fundId);
       
-      // หากเป็นบัญชี ออมทรัพย์/เผื่อเรียก ให้ใช้ยอดเงิน ณ เดือนนั้น เป็นต้นทุนอัตโนมัติ
       if (fund && isAutoCostSavingsFund(fund)) {
         return db.records[targetMonth] ? (db.records[targetMonth][fundId] || 0) : 0;
       }
 
-      // บัญชีอื่นๆ (YouTrip, e-Saving, กองทุน) คำนวณจากประวัติซื้อขายตามเดิม
       let cumulativeCost = 0;
       db.transactions.forEach(t => {
         const txMonth = t.date.substring(0, 7); 
