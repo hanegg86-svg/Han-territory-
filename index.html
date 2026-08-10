@@ -1842,7 +1842,7 @@
       return closestMonth;
     }
 
-    // ปรับแก้ไขการคำนวณผลตอบแทนย้อนหลังให้แสดง N/A หากไม่มีข้อมูลบันทึกจริงในช่วง +-6 เดือน
+    // ปรับแก้ไขสูตรคำนวณผลตอบแทนย้อนหลังให้ถูกต้อง ไม่ติดลบผิดพลาดจากการเพิ่มเงินต้น
     function calculatePeriodReturns(filterId, endMonthStr) {
       const allMonths = Object.keys(db.records).sort();
       if (!allMonths.includes(endMonthStr)) return null;
@@ -1852,7 +1852,6 @@
       const endMV = getMarketValueByFilter(filterId, endMonthStr);
       const endCost = getCostBasisByFilter(filterId, endMonthStr);
 
-      // ดึงรายชื่อเดือนทั้งหมดที่มีการเริ่มบันทึกข้อมูลจริง (> 0) ของกองทุน/กลุ่มที่เลือก
       const validMonthsForFund = allMonths.filter(m => {
         return getMarketValueByFilter(filterId, m) > 0 || getCostBasisByFilter(filterId, m) > 0;
       });
@@ -1872,10 +1871,8 @@
         const targetMonth = targetTotalMonths - (targetYear * 12);
         const targetMonthStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
 
-        // ค้นหาเดือนที่ใกล้เคียงสุดในช่วง +- 6 เดือน เฉพาะจากเดือนที่มีข้อมูลบันทึกจริงเท่านั้น
         const matchedMonth = findClosestMonth(targetMonthStr, validMonthsForFund, 6);
 
-        // หากไม่มีข้อมูลในช่วง +- 6 เดือน ให้ส่งค่า returnPct เป็น null เพื่อแสดง N/A
         if (!matchedMonth) {
           results[p.key] = { returnPct: null, matchedMonth: null, isAnnualized: p.isAnnualized, label: p.name };
         } else {
@@ -1887,11 +1884,17 @@
           } else {
             const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(matchedMonth);
             
-            const startProfitPct = startCost > 0 ? ((startMV - startCost) / startCost) * 100 : 0;
-            const endProfitPct = endCost > 0 ? ((endMV - endCost) / endCost) * 100 : 0;
-            let diffPct = endProfitPct - startProfitPct;
-            let returnPct = 0;
+            // คำนวณกำไรสะสมที่เพิ่มขึ้นเทียบกับฐานเงินลงทุนสะสมรวมที่ใช้จริงในช่วงนั้น
+            const netGainInPeriod = (endMV - endCost) - (startCost > 0 ? (startMV - startCost) : 0);
+            const addedCostInPeriod = endCost - startCost;
+            const baseCapital = startCost + addedCostInPeriod; 
+            
+            let diffPct = 0;
+            if (baseCapital > 0) {
+              diffPct = (netGainInPeriod / baseCapital) * 100;
+            }
 
+            let returnPct = 0;
             if (p.isAnnualized && actualMonthsDiff > 0) {
               const yearsDiff = actualMonthsDiff / 12;
               returnPct = diffPct / yearsDiff; 
