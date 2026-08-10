@@ -1,39 +1,70 @@
-// 1. เพิ่มชื่อเวอร์ชันแคชไว้ด้านบนสุด (เปลี่ยนเลข v1 เป็น v2 เมื่อมีรูปหรือโค้ดใหม่)
-const CACHE_NAME = 'wealth-tracker-v2';
+const CACHE_NAME = 'wealth-tracker-v3.5.0';
 
+// รายการไฟล์ทั้งหมดที่ต้องการให้ Service Worker ทำการ Caching ไว้สำหรับ Offline Mode
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
-  './icon.png', // <-- รูปไอคอนใหม่ที่เราอัปโหลดทับ[span_1](start_span)[span_1](end_span)
+  './icon.png',
+  // JS Modules ใหม่ทั้ง 4 ไฟล์
+  './config-store.js',
+  './api-gemini.js',
+  './modules-views.js',
+  './app.js',
+  // External Libraries (เพื่อรองรับการใช้งาน Offline แบบเต็มรูปแบบ)
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js'
 ];
 
-// 2. ตอน Install ให้สั่งจำแคชตามชื่อ CACHE_NAME
+// 1. Install Event: ทำการดาวน์โหลดและเก็บบันทึกไฟล์ลง Cache Storage
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
+      console.log('[Service Worker] Caching all static assets');
       return cache.addAll(ASSETS_TO_CACHE);
-    })
+    }).then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-// 3. ตอน Activate ให้สั่งลบ Cache เวอร์ชันเก่าทิ้งทันที
+// 2. Activate Event: ลบ Cache เวอร์ชั่นเก่าทิ้งเมื่อมีการอัปเดตเวอร์ชั่นใหม่
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
+            console.log('[Service Worker] Deleting old cache:', cache);
             return caches.delete(cache);
           }
         })
       );
+    }).then(() => self.clients.claim())
+  );
+});
+
+// 3. Fetch Event: ดึงข้อมูลจาก Cache ก่อน หากไม่มีค่อยดึงจาก Network (Stale-While-Revalidate Strategy)
+self.addEventListener('fetch', (event) => {
+  // ข้ามการทำ Caching สำหรับการเรียก Gemini API
+  if (event.request.url.includes('generativelanguage.googleapis.com')) {
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        // คืนค่าไฟล์จาก Cache และทำ Background Refresh
+        fetch(event.request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
+          }
+        }).catch(() => {/* Ignore network errors when offline */});
+        
+        return cachedResponse;
+      }
+      
+      return fetch(event.request);
     })
   );
-  self.clients.claim();
 });
