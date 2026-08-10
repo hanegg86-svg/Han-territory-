@@ -1589,20 +1589,32 @@
                   const fSymbol = (fund.symbol || '').toUpperCase().trim();
                   const fName = (fund.name || '').toUpperCase().trim();
                   
+                  const cleanScanned = scannedCode.replace(/[^A-Z0-9]/g, '');
+                  const cleanSymbol = fSymbol.replace(/[^A-Z0-9]/g, '');
+                  
                   const isMatched = (fSymbol === scannedCode || fName === scannedCode || 
-                                       (scannedCode.length >= 4 && fSymbol.includes(scannedCode)));
+                                     cleanSymbol.startsWith(cleanScanned) || cleanScanned.startsWith(cleanSymbol));
 
                   if (isMatched && !isNaN(scannedPrice) && !isCashItem) {
                     const navEl = document.getElementById(`entry-nav-${fund.id}`);
+                    const unitsEl = document.getElementById(`entry-units-${fund.id}`);
                     const totalEl = document.getElementById(`entry-${fund.id}`);
 
                     if (navEl) {
                       navEl.value = scannedPrice;
-                      autoCalcMonthlyFund(fund.id, 'nav');
+                      let currentUnits = unitsEl ? parseFloat(unitsEl.value) || 0 : (fund.units || 0);
+                      if (currentUnits > 0) {
+                        fund.units = currentUnits;
+                        if (totalEl) totalEl.value = formatNumber(scannedPrice * currentUnits);
+                      } else if (totalEl) {
+                        totalEl.value = formatNumber(scannedPrice);
+                      }
+                      scheduleAutoSave(fund.id, totalEl ? totalEl.value : scannedPrice);
                       matchedCount++;
                     } else if (totalEl) {
-                      if (fund.units && fund.units > 0) {
-                        totalEl.value = formatNumber(scannedPrice * fund.units);
+                      let currentUnits = fund.units || 0;
+                      if (currentUnits > 0) {
+                        totalEl.value = formatNumber(scannedPrice * currentUnits);
                       } else {
                         totalEl.value = formatNumber(scannedPrice);
                       }
