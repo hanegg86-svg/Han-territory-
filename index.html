@@ -642,28 +642,35 @@
             <label class="block text-xs font-bold text-slate-600 mb-1">กลุ่มสภาพคล่อง</label>
             <select id="new-fund-cat" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
               <option value="high">สภาพคล่องสูง (ออมทรัพย์/e-Savings/Youtrip)</option>
-              <option value="med">สภาพคล่องปานกลาง (หุ้น/เงินสด)</option>
+              <option value="med">สภาพคล่องปานกลาง (หุ้น/เงินสด/กองทุน)</option>
               <option value="low">สภาพคล่องต่ำ</option>
               <option value="ins">ประกัน / อื่นๆ</option>
             </select>
           </div>
+          <div class="md:col-span-3">
+            <label class="block text-xs font-bold text-slate-600 mb-1">รูปแบบการป้อนข้อมูล</label>
+            <select id="new-fund-type" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
+              <option value="nav">กองทุน / หุ้นกู้ (ใช้ NAV / จำนวนหน่วย)</option>
+              <option value="stock">หุ้นรายตัว / เงินสด (ระบุรายการย่อย)</option>
+            </select>
+          </div>
           <div class="md:col-span-4">
             <label class="block text-xs font-bold text-slate-600 mb-1">ชื่อเรียกบัญชี/กองทุน</label>
-            <input type="text" id="new-fund-name" placeholder="เช่น ออมทรัพย์ กสิกร หรือ Dime e-Savings" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
+            <input type="text" id="new-fund-name" placeholder="เช่น KBANK หรือ Dime e-Savings" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-semibold outline-none bg-white">
           </div>
-          <div class="md:col-span-3">
-            <label class="block text-xs font-bold text-blue-700 mb-1"><i class="fa-solid fa-tag mr-1"></i>รหัสกองทุน (Symbol / Code)</label>
-            <input type="text" id="new-fund-symbol" placeholder="เช่น KBANK-SAVE หรือ DIME-SAVE" class="w-full p-2.5 border border-blue-300 rounded-lg text-sm font-mono font-bold text-blue-900 outline-none bg-blue-50 uppercase">
+          <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-blue-700 mb-1"><i class="fa-solid fa-tag mr-1"></i>รหัส (Symbol)</label>
+            <input type="text" id="new-fund-symbol" placeholder="เช่น KBANK" class="w-full p-2.5 border border-blue-300 rounded-lg text-sm font-mono font-bold text-blue-900 outline-none bg-blue-50 uppercase">
           </div>
-          <div class="md:col-span-2 flex items-end">
-            <button onclick="addNewFund()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold shadow-sm transition-all text-sm whitespace-nowrap">
+          <div class="md:col-span-12 flex justify-end pt-2">
+            <button onclick="addNewFund()" class="py-2.5 px-6 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold shadow-sm transition-all text-sm whitespace-nowrap">
               <i class="fa-solid fa-plus mr-1.5"></i>เพิ่มรายการ
             </button>
           </div>
           <div class="md:col-span-12 pt-2 border-t border-slate-200/60">
             <label class="flex items-center space-x-2 cursor-pointer text-xs font-bold text-slate-700 hover:text-blue-600">
               <input type="checkbox" id="new-fund-fixed-cost" class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
-              <span>🔒 กำหนดให้ต้นทุน = มูลค่าปัจจุบันเสมอ (เหมาะสำหรับบัญชีเงินฝาก/ออมทรัพย์ทั่วไปที่ไม่มีการคิดผลตอบแทนผันผวน)</span>
+              <span>🔒 กำหนดให้ต้นทุน = มูลค่าปัจจุบันเสมอ (เหมาะสำหรับบัญชีเงินฝาก/ออมทรัพย์ทั่วไป)</span>
             </label>
           </div>
         </div>
@@ -754,7 +761,7 @@
     let db = {
       categories: {
         high: { id: 'high', name: 'สภาพคล่องสูง', color: 'emerald' },
-        med: { id: 'med', name: 'สภาพคล่องปานกลาง (หุ้น/เงินสด)', color: 'amber' },
+        med: { id: 'med', name: 'สภาพคล่องปานกลาง (หุ้น/เงินสด/กองทุน)', color: 'amber' },
         low: { id: 'low', name: 'สภาพคล่องต่ำ', color: 'purple' },
         ins: { id: 'ins', name: 'มูลค่าสะสมประกัน', color: 'rose' }
       },
@@ -930,6 +937,9 @@
             if (f.units === undefined) f.units = 0;
             if (f.symbol === undefined) f.symbol = f.name || '';
             if (f.isFixedCost === undefined) f.isFixedCost = false;
+            if (f.entryType === undefined) {
+              f.entryType = (f.holdings && f.holdings.length > 0) ? 'stock' : 'nav';
+            }
             return f;
           });
         }
@@ -1004,14 +1014,21 @@
         if (catFunds.length === 0) html += `<p class="text-xs text-slate-400">ยังไม่มีข้อมูลในหมวดนี้</p>`;
         
         catFunds.forEach(f => {
+          const isStockType = f.entryType === 'stock';
           html += `
             <div class="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-3">
               <div class="flex justify-between items-center gap-2">
                 <div class="flex-1 space-y-1">
                   <input type="text" value="${f.name}" onchange="updateFundName('${f.id}', this.value)" placeholder="ชื่อเรียกบัญชี/กองทุน" class="bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none text-sm font-bold text-slate-800 w-full">
-                  <div class="flex items-center space-x-1.5">
+                  <div class="flex flex-wrap items-center gap-2 pt-1">
                     <span class="text-[10px] font-bold text-slate-400">รหัส:</span>
-                    <input type="text" value="${f.symbol || ''}" onchange="updateFundSymbol('${f.id}', this.value)" placeholder="รหัสสแกน AI (เช่น INVX-STOCKS)" class="bg-white border border-slate-300 focus:border-blue-500 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-blue-800 uppercase outline-none">
+                    <input type="text" value="${f.symbol || ''}" onchange="updateFundSymbol('${f.id}', this.value)" placeholder="รหัสสแกน AI" class="bg-white border border-slate-300 focus:border-blue-500 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-blue-800 uppercase outline-none">
+                    
+                    <span class="text-[10px] font-bold text-slate-400 ml-2">รูปแบบ:</span>
+                    <select onchange="updateFundEntryType('${f.id}', this.value)" class="bg-white border border-slate-300 text-[11px] font-bold text-slate-700 rounded px-1.5 py-0.5 outline-none">
+                      <option value="nav" ${!isStockType ? 'selected' : ''}>NAV / หน่วย</option>
+                      <option value="stock" ${isStockType ? 'selected' : ''}>หุ้นรายตัว / เงินสด</option>
+                    </select>
                   </div>
                 </div>
                 <button onclick="deleteFund('${f.id}')" class="text-rose-400 hover:text-rose-600 p-1.5"><i class="fa-solid fa-trash-can text-md"></i></button>
@@ -1050,6 +1067,7 @@
       const nameInput = document.getElementById('new-fund-name');
       const symbolInput = document.getElementById('new-fund-symbol');
       const catInput = document.getElementById('new-fund-cat');
+      const typeInput = document.getElementById('new-fund-type');
       const fixedCostInput = document.getElementById('new-fund-fixed-cost');
 
       if (!nameInput || nameInput.value.trim() === '') return alert('กรุณากรอกชื่อกองทุน/บัญชี');
@@ -1062,6 +1080,7 @@
         name: nameVal,
         symbol: symbolVal,
         catId: catInput.value,
+        entryType: typeInput ? typeInput.value : 'nav',
         units: 0,
         isFixedCost: fixedCostInput ? fixedCostInput.checked : false,
         subCategories: [],
@@ -1073,7 +1092,16 @@
       if(fixedCostInput) fixedCostInput.checked = false;
       saveDB();
       renderSetupTab();
-      showToast('เพิ่มกองทุนเรียบร้อย');
+      showToast('เพิ่มรายการเรียบร้อย');
+    }
+
+    function updateFundEntryType(id, newType) {
+      const fund = db.funds.find(f => f.id === id);
+      if (fund) {
+        fund.entryType = newType;
+        saveDB();
+        showToast('อัปเดตรูปแบบการป้อนข้อมูลเรียบร้อย');
+      }
     }
 
     function toggleFundFixedCost(id, isChecked) {
@@ -1090,7 +1118,7 @@
       if (fund) { 
         fund.symbol = newSymbol.trim().toUpperCase(); 
         saveDB(); 
-        showToast('อัปเดตรหัสกองทุนเรียบร้อย');
+        showToast('อัปเดตรหัสเรียบร้อย');
       }
     }
 
@@ -1128,7 +1156,7 @@
     }
 
     function deleteFund(id) {
-      if (confirm('หากลบกองทุนนี้ ประวัติย้อนหลังจะถูกลบด้วย ยืนยันหรือไม่?')) {
+      if (confirm('หากลบรายการนี้ ประวัติย้อนหลังจะถูกลบด้วย ยืนยันหรือไม่?')) {
         db.funds = db.funds.filter(f => f.id !== id);
         Object.keys(db.records).forEach(month => { if (db.records[month][id] !== undefined) delete db.records[month][id]; });
         db.transactions = db.transactions.filter(t => t.fundId !== id); 
@@ -1334,7 +1362,7 @@
         let html = `
           <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <h3 class="font-bold text-${cat.color}-600 mb-4 uppercase tracking-wide">${cat.name}</h3>
-            <div class="grid grid-cols-1 ${cat.id === 'med' ? 'grid-cols-1' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4">`;
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
         
         catFunds.forEach(f => {
           let val = currentData[f.id] !== undefined ? currentData[f.id] : '';
@@ -1358,20 +1386,22 @@
           const unitsVal = f.units || 0;
           const calculatedNav = (unitsVal > 0 && currentAmount > 0) ? (currentAmount / unitsVal).toFixed(4) : '';
           
-          const showNavAndUnits = (cat.id !== 'high' && cat.id !== 'ins' && cat.id !== 'med');
-          const isMedCategory = (cat.id === 'med');
+          const isStockType = f.entryType === 'stock';
 
           html += `
-            <div class="bg-slate-50 p-3.5 rounded-lg border border-slate-200 relative space-y-2">
+            <div class="${isStockType ? 'col-span-1 md:col-span-2 lg:col-span-3' : 'col-span-1'} bg-slate-50 p-3.5 rounded-lg border border-slate-200 relative space-y-2">
               <div class="flex justify-between items-center">
                 <label class="block text-xs font-bold text-slate-800 truncate">${f.name}</label>
-                <span class="text-[10px] font-mono font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">${f.symbol || f.name}</span>
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-[10px] font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">${isStockType ? 'หุ้น/เงินสด' : 'NAV/หน่วย'}</span>
+                  <span class="text-[10px] font-mono font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">${f.symbol || f.name}</span>
+                </div>
               </div>
               
-              ${showNavAndUnits ? `
+              ${!isStockType ? `
               <div class="grid grid-cols-2 gap-2 bg-white p-2 rounded border border-slate-200">
                 <div>
-                  <label class="block text-[10px] font-bold text-slate-500">NAV (บาท)</label>
+                  <label class="block text-[10px] font-bold text-slate-500">NAV / ราคาต่อหน่วย</label>
                   <input type="number" step="0.0001" id="entry-nav-${f.id}" value="${calculatedNav}" placeholder="0.0000"
                          oninput="autoCalcMonthlyFund('${f.id}', 'nav')"
                          class="w-full border border-slate-200 rounded p-1 text-xs font-mono font-semibold text-slate-700 outline-none">
@@ -1385,7 +1415,7 @@
               </div>
               ` : ''}
 
-              ${isMedCategory ? `
+              ${isStockType ? `
               <div id="holdings-list-${f.id}" class="space-y-2 bg-white p-3 rounded-lg border border-slate-200 overflow-x-auto">
                 <div class="grid grid-cols-12 gap-1 text-[10px] font-bold text-slate-500 border-b pb-1 min-w-[500px]">
                   <span class="col-span-2">ชื่อหุ้น/เงินสด</span>
@@ -1455,7 +1485,7 @@
               <div>
                 <label class="block text-[10px] font-bold text-blue-700">รวมมูลค่าทั้งหมด (บาท)</label>
                 <input type="text" inputmode="decimal" id="entry-${f.id}" value="${displayVal}" placeholder="0.00" 
-                       ${isMedCategory ? 'readonly' : ''}
+                       ${isStockType ? 'readonly' : ''}
                        oninput="autoCalcMonthlyFund('${f.id}', 'total')"
                        onblur="this.value = formatNumber(parseLocalNumber(this.value))"
                        onfocus="this.select()"
@@ -1920,7 +1950,7 @@
       
       select.innerHTML += `<option value="ALL_PORTFOLIO">🌟 [พอร์ตสินทรัพย์รวมทั้งหมด]</option>`;
       select.innerHTML += `<option value="CAT_high">💧 [กลุ่มสินทรัพย์สภาพคล่องสูง]</option>`;
-      select.innerHTML += `<option value="CAT_med">🔶 [กลุ่มสินทรัพย์สภาพคล่องปานกลาง (หุ้น/เงินสด)]</option>`;
+      select.innerHTML += `<option value="CAT_med">🔶 [กลุ่มสินทรัพย์สภาพคล่องปานกลาง (หุ้น/เงินสด/กองทุน)]</option>`;
       select.innerHTML += `<option value="CAT_low">🔒 [กลุ่มสินทรัพย์สภาพคล่องต่ำ]</option>`;
       select.innerHTML += `<option value="CAT_ins">🛡️ [กลุ่มมูลค่าสะสมประกัน]</option>`;
       
@@ -2018,18 +2048,15 @@
       }
     }
 
-    // 🌟 ฟังก์ชันคำนวณ Trailing Returns (หาข้อมูลที่ใกล้ที่สุดทั้งย้อนหลัง/ไปข้างหน้า ไม่เกิน 6 เดือน)
     function calculateTrailingReturn(filterId, endMonth, monthsBack) {
       const allMonths = Object.keys(db.records).sort();
       const endIdx = allMonths.indexOf(endMonth);
       if (endIdx === -1) return null;
 
-      // 1. คำนวณเดือนเป้าหมายในอดีต (Target Start Month)
       const [endYear, endM] = endMonth.split('-').map(Number);
       const targetDate = new Date(endYear, endM - 1 - monthsBack, 1);
       const targetTime = targetDate.getTime();
 
-      // 2. กำหนดขีดจำกัดระยะห่างไม่เกิน 6 เดือน (ประมาณ 182.625 วัน)
       const SIX_MONTHS_MS = 6 * 30.4375 * 24 * 60 * 60 * 1000;
       
       let closestMonth = null;
@@ -2040,34 +2067,28 @@
         const currentDate = new Date(y, mNum - 1, 1);
         const diff = Math.abs(currentDate.getTime() - targetTime);
 
-        // ต้องอยู่ภายในกรอบไม่เกิน 6 เดือน และระยะห่างน้อยกว่าตัวที่เคยเจอ
         if (diff <= SIX_MONTHS_MS && diff < minDiff) {
           minDiff = diff;
           closestMonth = m;
         }
       });
 
-      // ถ้าหาในกรอบ ±6 เดือน ทั้งย้อนหลังและไปข้างหน้าไม่เจอเลย ให้แสดง N/A
       if (!closestMonth) return null;
 
       const startMonth = closestMonth;
 
-      // 3. ดึงมูลค่าตลาด ณ เดือนเริ่มต้น และ เดือนปัจจุบัน
       const startVal = getMarketValueByFilter(filterId, startMonth);
       const endVal = getMarketValueByFilter(filterId, endMonth);
 
-      if (startVal <= 0) return null; // มูลค่าเริ่มต้นเป็น 0 คิด % ไม่ได้
+      if (startVal <= 0) return null;
 
-      // 4. คำนวณเงินลงทุนที่ซื้อ/ขายเพิ่ม (Net Capital Flow) ในระหว่างช่วงเวลา
       const startCost = getCostBasisByFilter(filterId, startMonth);
       const endCost = getCostBasisByFilter(filterId, endMonth);
       const netFlow = endCost - startCost;
 
-      // 5. คำนวณผลตอบแทนจากพอร์ตจริง (หักเงินเติมออก)
       const adjustedEndVal = endVal - netFlow;
       const hpr = ((adjustedEndVal / startVal) - 1) * 100;
 
-      // 6. กรณี 2 ปีขึ้นไป (monthsBack >= 24) แปลงเป็นอัตราต่อปี (Annualized / CAGR)
       if (monthsBack >= 24) {
         const years = monthsBack / 12;
         if (adjustedEndVal > 0) {
@@ -2836,7 +2857,7 @@
 
     // ================= BACKUP / RESTORE / EXPORT =================
     function backupToJson() {
-      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v4.2.0', exportedAt: new Date().toISOString(), data: db };
+      const payload = { app: 'Pro Wealth Tracker PWA', version: 'v4.3.0', exportedAt: new Date().toISOString(), data: db };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -2880,6 +2901,9 @@
               if (f.units === undefined) f.units = 0;
               if (f.symbol === undefined) f.symbol = f.name || '';
               if (f.isFixedCost === undefined) f.isFixedCost = false;
+              if (f.entryType === undefined) {
+                f.entryType = (f.holdings && f.holdings.length > 0) ? 'stock' : 'nav';
+              }
               return f;
             });
           }
