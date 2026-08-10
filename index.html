@@ -241,7 +241,14 @@
           </div>
         </div>
 
-        <div id="chart-latest-summary" class="grid grid-cols-1 md:grid-cols-4 gap-4"></div>
+        <!-- การ์ดสรุปมูลค่าปัจจุบัน & ต้นทุน -->
+        <div id="chart-latest-summary" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4"></div>
+
+        <!-- การ์ดสรุปผลตอบแทนย้อนหลัง (6M, 1Y, 2Y ต่อปี, 5Y ต่อปี) -->
+        <div class="space-y-2">
+          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i> สรุปผลตอบแทนย้อนหลังตามระยะเวลา</h3>
+          <div id="chart-period-returns" class="grid grid-cols-2 sm:grid-cols-4 gap-4"></div>
+        </div>
 
         <div class="relative h-[400px] w-full border border-slate-200 rounded-xl p-4 bg-white">
           <canvas id="individualChart"></canvas>
@@ -540,8 +547,8 @@
         <div class="flex items-center space-x-3">
           <div class="p-2.5 bg-blue-600 text-white rounded-lg shadow-md"><i class="fa-solid fa-wand-magic-sparkles text-lg"></i></div>
           <div>
-            <h4 class="text-sm font-bold text-slate-800">สแกนอ่าน NAV จากสกรีนช็อตด้วย Gemini 3.1 Flash-Lite</h4>
-            <p class="text-xs text-slate-500">ระบบจะนำรหัสกองทุนจากภาพมาแมตช์กับ Symbol แล้วเติมค่า NAV ให้อัตโนมัติ</p>
+            <h4 class="text-sm font-bold text-slate-800">สแกนอ่าน NAV / พอร์ต ด้วย Gemini 3.1 Flash-Lite</h4>
+            <p class="text-xs text-slate-500">รองรับสแกนภาพกองทุนทั่วไป และภาพพอร์ตหุ้น (รวมเงินสด+หุ้นให้อัตโนมัติ)</p>
           </div>
         </div>
         <label class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-md whitespace-nowrap">
@@ -756,7 +763,7 @@
     let autoSaveTimer = null;
     let activeEntryMonth = '';
     let entryDirty = false;
-    let currentTab = 'tab-compare'; // เริ่มต้นที่หน้าแดชบอร์ด
+    let currentTab = 'tab-compare'; 
     let renderUsingCarryForward = false;
     let selectedSubCatsForCompare = [];
 
@@ -816,7 +823,7 @@
     function updateStorageSizeDisplay() {
       const dbData = localStorage.getItem('ProWealthDB_v2') || '';
       const bytes = new Blob([dbData]).size;
-      const maxBytes = 5 * 1024 * 1024; // 5 MB Max
+      const maxBytes = 5 * 1024 * 1024; 
       const pct = Math.min(100, (bytes / maxBytes) * 100);
 
       let formattedSize = '';
@@ -1101,7 +1108,7 @@
       }
     }
 
-    // ================= ENTRY TAB & GEMINI DIRECT API SCAN =================
+    // ================= ENTRY TAB & GEMINI HYBRID DIRECT API SCAN =================
     function initEntryTab() {
       const mInput = document.getElementById('entry-month');
       if(mInput) {
@@ -1226,7 +1233,6 @@
           const unitsVal = f.units || 0;
           const calculatedNav = (unitsVal > 0 && currentAmount > 0) ? (currentAmount / unitsVal).toFixed(4) : '';
           
-          // ซ่อนช่อง NAV / Units สำหรับหมวด high (สภาพคล่องสูง) และ ins (ประกัน)
           const showNavAndUnits = (cat.id !== 'high' && cat.id !== 'ins');
 
           html += `
@@ -1237,7 +1243,6 @@
               </div>
               
               ${showNavAndUnits ? `
-              <!-- NAV & Unit dynamic inputs -->
               <div class="grid grid-cols-2 gap-2 bg-white p-2 rounded border border-slate-200">
                 <div>
                   <label class="block text-[10px] font-bold text-slate-500">NAV (บาท)</label>
@@ -1254,7 +1259,6 @@
               </div>
               ` : ''}
 
-              <!-- Total value input -->
               <div>
                 <label class="block text-[10px] font-bold text-blue-700">รวมมูลค่าทั้งหมด (บาท)</label>
                 <input type="text" inputmode="decimal" id="entry-${f.id}" value="${displayVal}" placeholder="0.00" 
@@ -1281,7 +1285,7 @@
       setEntryStatus(renderUsingCarryForward ? `<i class="fa-solid fa-info-circle mr-1"></i> โหมดแก้ไข (ข้อมูลยังไม่ถูกบันทึก)` : `<i class="fa-solid fa-check mr-1"></i> ข้อมูลในระบบล่าสุด`);
     }
 
-    // Direct Gemini 3.1 Flash-Lite AI OCR Processing via API Key (Supports Multiple Files)
+    // Hybrid Direct Gemini 3.1 Flash-Lite AI OCR Processing (สแกนกองทุนทั่วไป + พอร์ตหุ้นรวมเงินสด)
     async function processImageWithGemini(event) {
       const files = event.target.files;
       if (!files || files.length === 0) return;
@@ -1314,9 +1318,13 @@
           const { base64Data, mimeType } = await readFileAsBase64(file);
 
           const promptText = `
-            Extract mutual fund names/symbols and their corresponding NAV (Net Asset Value) from this image.
-            Return ONLY a clean JSON array with no extra text or markdown syntax.
-            Format: [{"symbol": "K-SF-SSF", "nav": 10.4521}]
+            Analyze this portfolio/mutual fund image.
+            Return ONLY a clean JSON object with two fields:
+            1. "items": Array of objects for mutual funds/symbols with NAV or Amount [{"symbol": "K-SF-SSF", "nav": 10.45, "amount": 10000}]
+            2. "portfolio": Object for portfolio breakdown if present (e.g. {"cash": 86172.96, "stock": 157320.00})
+
+            Return strictly valid JSON syntax without markdown blocks:
+            {"items": [], "portfolio": {"cash": 0, "stock": 0}}
           `;
 
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
@@ -1337,14 +1345,40 @@
 
           const rawText = resData.candidates[0].content.parts[0].text.trim();
           const jsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-          const items = JSON.parse(jsonStr);
+          const parsedData = JSON.parse(jsonStr);
 
-          if (Array.isArray(items) && items.length > 0) {
-            items.forEach(item => {
+          // 1. จัดการหน้าพอร์ตหุ้น (ถ้ามี "เงินสด" + "หุ้น" ในรูป ให้บวกกันแล้วลงช่อง "หุ้น")
+          if (parsedData.portfolio) {
+            const cashVal = parseFloat(parsedData.portfolio.cash) || 0;
+            const stockVal = parseFloat(parsedData.portfolio.stock) || 0;
+            const totalStockPlusCash = cashVal + stockVal;
+
+            if (totalStockPlusCash > 0) {
+              const matchedStockFund = db.funds.find(f => {
+                const fSymbol = (f.symbol || '').toUpperCase().trim();
+                const fName = (f.name || '').toUpperCase().trim();
+                return fSymbol === 'หุ้น' || fName === 'หุ้น' || fSymbol === 'STOCK' || fName.includes('หุ้น');
+              });
+
+              if (matchedStockFund) {
+                const totalInput = document.getElementById(`entry-${matchedStockFund.id}`);
+                if (totalInput) {
+                  totalInput.value = formatNumber(totalStockPlusCash);
+                  autoCalcMonthlyFund(matchedStockFund.id, 'total');
+                  matchedCount++;
+                }
+              }
+            }
+          }
+
+          // 2. จัดการรูปกองทุนรวมปกติ (สแกน NAV หรือ ยอดเงินตาม Symbol)
+          if (Array.isArray(parsedData.items) && parsedData.items.length > 0) {
+            parsedData.items.forEach(item => {
               const scannedCode = (item.symbol || '').toUpperCase().trim();
               const navVal = parseFloat(item.nav);
+              const amountVal = parseFloat(item.amount);
 
-              if (scannedCode && !isNaN(navVal)) {
+              if (scannedCode) {
                 const matchedFund = db.funds.find(f => {
                   const fSymbol = (f.symbol || '').toUpperCase().trim();
                   const fName = (f.name || '').toUpperCase().trim();
@@ -1352,11 +1386,20 @@
                 });
 
                 if (matchedFund) {
-                  const navEl = document.getElementById(`entry-nav-${matchedFund.id}`);
-                  if (navEl) {
-                    navEl.value = navVal;
-                    autoCalcMonthlyFund(matchedFund.id, 'nav');
-                    matchedCount++;
+                  if (!isNaN(navVal) && navVal > 0) {
+                    const navEl = document.getElementById(`entry-nav-${matchedFund.id}`);
+                    if (navEl) {
+                      navEl.value = navVal;
+                      autoCalcMonthlyFund(matchedFund.id, 'nav');
+                      matchedCount++;
+                    }
+                  } else if (!isNaN(amountVal) && amountVal > 0) {
+                    const totalEl = document.getElementById(`entry-${matchedFund.id}`);
+                    if (totalEl) {
+                      totalEl.value = formatNumber(amountVal);
+                      autoCalcMonthlyFund(matchedFund.id, 'total');
+                      matchedCount++;
+                    }
                   }
                 }
               }
@@ -1365,16 +1408,16 @@
         }
 
         if (matchedCount > 0) {
-          showToast(`อัปเดต NAV สำเร็จรวม ${matchedCount} รายการ!`);
+          showToast(`อัปเดตข้อมูลสำเร็จรวม ${matchedCount} รายการ!`);
         } else {
-          alert('สแกนสำเร็จแต่ไม่พบรหัสกองทุนที่ตรงกัน กรุณาตรวจสอบว่าได้กำหนด Symbol ในแท็บตั้งค่าตรงกับสกรีนช็อต');
+          alert('สแกนสำเร็จแต่ไม่พบรายการที่ตรงกับ Symbol ในระบบ กรุณาตรวจสอบแท็บตั้งค่า');
         }
 
       } catch (err) {
         console.error(err);
         alert('เกิดข้อผิดพลาดในการประมวลผล Gemini AI: ' + err.message);
       } finally {
-        event.target.value = ''; // Reset input
+        event.target.value = ''; 
       }
     }
 
@@ -1776,6 +1819,81 @@
       }
     }
 
+    // แปลงเดือน YYYY-MM เป็นจำนวนเดือน
+    function monthToTotalMonths(monthStr) {
+      const [year, month] = monthStr.split('-').map(Number);
+      return year * 12 + month;
+    }
+
+    // ค้นหาเดือนที่ใกล้เคียงที่สุด (ไม่เกิน maxDiffMonths)
+    function findClosestMonth(targetMonthStr, availableMonths, maxDiffMonths = 6) {
+      if (!availableMonths || availableMonths.length === 0) return null;
+      
+      const targetVal = monthToTotalMonths(targetMonthStr);
+      let closestMonth = null;
+      let minDiff = Infinity;
+
+      availableMonths.forEach(m => {
+        const diff = Math.abs(monthToTotalMonths(m) - targetVal);
+        if (diff <= maxDiffMonths && diff < minDiff) {
+          minDiff = diff;
+          closestMonth = m;
+        }
+      });
+
+      return closestMonth;
+    }
+
+    // คำนวณผลตอบแทนย้อนหลัง (6M, 1Y, 2Y, 5Y)
+    function calculatePeriodReturns(filterId, endMonthStr) {
+      const allMonths = Object.keys(db.records).sort();
+      if (!allMonths.includes(endMonthStr)) return null;
+
+      const [endYear, endMonth] = endMonthStr.split('-').map(Number);
+      const endValue = getMarketValueByFilter(filterId, endMonthStr);
+
+      const periods = [
+        { key: '6m', name: 'ย้อนหลัง 6 เดือน', monthsBack: 6, isAnnualized: false },
+        { key: '1y', name: 'ย้อนหลัง 1 ปี', monthsBack: 12, isAnnualized: false },
+        { key: '2y', name: 'ย้อนหลัง 2 ปี', monthsBack: 24, isAnnualized: true },
+        { key: '5y', name: 'ย้อนหลัง 5 ปี', monthsBack: 60, isAnnualized: true }
+      ];
+
+      const results = {};
+
+      periods.forEach(p => {
+        const targetTotalMonths = (endYear * 12 + endMonth) - p.monthsBack;
+        const targetYear = Math.floor((targetTotalMonths - 1) / 12);
+        const targetMonth = targetTotalMonths - (targetYear * 12);
+        const targetMonthStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
+
+        const matchedMonth = findClosestMonth(targetMonthStr, allMonths, 6);
+
+        if (!matchedMonth) {
+          results[p.key] = { returnPct: null, matchedMonth: null, isAnnualized: p.isAnnualized, label: p.name };
+        } else {
+          const startValue = getMarketValueByFilter(filterId, matchedMonth);
+          if (startValue <= 0 || endValue <= 0) {
+            results[p.key] = { returnPct: null, matchedMonth: matchedMonth, isAnnualized: p.isAnnualized, label: p.name };
+          } else {
+            const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(matchedMonth);
+            let returnPct = 0;
+
+            if (p.isAnnualized && actualMonthsDiff > 0) {
+              const yearsDiff = actualMonthsDiff / 12;
+              returnPct = (Math.pow(endValue / startValue, 1 / yearsDiff) - 1) * 100;
+            } else {
+              returnPct = ((endValue - startValue) / startValue) * 100;
+            }
+
+            results[p.key] = { returnPct, matchedMonth, actualMonthsDiff, isAnnualized: p.isAnnualized, label: p.name };
+          }
+        }
+      });
+
+      return results;
+    }
+
     function renderIndividualChart() {
       const fundSelect = document.getElementById('chart-fund-select');
       const startEl = document.getElementById('chart-start');
@@ -1786,8 +1904,10 @@
       const startM = startEl.value;
       const endM = endEl.value;
       const summaryContainer = document.getElementById('chart-latest-summary');
+      const periodContainer = document.getElementById('chart-period-returns');
       
       if(summaryContainer) summaryContainer.innerHTML = '';
+      if(periodContainer) periodContainer.innerHTML = '';
       if (!filterId || !startM || !endM) return;
 
       const allMonths = Object.keys(db.records).sort();
@@ -1826,6 +1946,35 @@
             <h4 class="text-lg font-black ${latestProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${latestProfit >= 0 ? '+' : ''}${latestProfitPct.toFixed(2)}%</h4>
           </div>
         `;
+      }
+
+      // แสดงการ์ดสรุปผลตอบแทนย้อนหลัง
+      if (periodContainer && endM) {
+        const periodData = calculatePeriodReturns(filterId, endM);
+
+        if (periodData) {
+          ['6m', '1y', '2y', '5y'].forEach(key => {
+            const item = periodData[key];
+            let valText = 'N/A';
+            let colorClass = 'text-slate-400';
+            let noteText = 'ไม่มีข้อมูลในระยะเวลา';
+
+            if (item && item.returnPct !== null) {
+              const isPos = item.returnPct >= 0;
+              valText = `${isPos ? '+' : ''}${item.returnPct.toFixed(2)}%`;
+              colorClass = isPos ? 'text-emerald-600' : 'text-rose-600';
+              noteText = `เทียบข้อมูล ณ ${item.matchedMonth}`;
+            }
+
+            periodContainer.innerHTML += `
+              <div class="bg-slate-50/80 p-3 rounded-xl border border-slate-200 shadow-sm text-center">
+                <p class="text-[11px] font-bold text-slate-600 mb-0.5">${item.label} ${item.isAnnualized ? '<span class="text-[9px] text-blue-600 font-normal">(ต่อปี)</span>' : ''}</p>
+                <h4 class="text-base font-black ${colorClass}">${valText}</h4>
+                <p class="text-[9px] text-slate-400 mt-0.5 truncate">${noteText}</p>
+              </div>
+            `;
+          });
+        }
       }
 
       const canvas = document.getElementById('individualChart');
