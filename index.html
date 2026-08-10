@@ -2002,7 +2002,7 @@
       }
     }
 
-    // 🌟 ฟังก์ชันคำนวณ Trailing Returns (หาข้อมูลที่ใกล้ที่สุดทั้งย้อนหลัง/ไปข้างหน้า ไม่เกิน 10 เดือน)
+    // 🌟 ฟังก์ชันคำนวณ Trailing Returns (หาข้อมูลที่ใกล้ที่สุดทั้งย้อนหลัง/ไปข้างหน้า ไม่เกิน 6 เดือน)
     function calculateTrailingReturn(filterId, endMonth, monthsBack) {
       const allMonths = Object.keys(db.records).sort();
       const endIdx = allMonths.indexOf(endMonth);
@@ -2013,8 +2013,8 @@
       const targetDate = new Date(endYear, endM - 1 - monthsBack, 1);
       const targetTime = targetDate.getTime();
 
-      // 2. กำหนดขีดจำกัดระยะห่างไม่เกิน 10 เดือน (ประมาณ 304.375 วัน)
-      const TEN_MONTHS_MS = 10 * 30.4375 * 24 * 60 * 60 * 1000;
+      // 2. กำหนดขีดจำกัดระยะห่างไม่เกิน 6 เดือน (ประมาณ 182.625 วัน)
+      const SIX_MONTHS_MS = 6 * 30.4375 * 24 * 60 * 60 * 1000;
       
       let closestMonth = null;
       let minDiff = Infinity;
@@ -2024,14 +2024,14 @@
         const currentDate = new Date(y, mNum - 1, 1);
         const diff = Math.abs(currentDate.getTime() - targetTime);
 
-        // ต้องอยู่ภายในกรอบไม่เกิน 10 เดือน และระยะห่างน้อยกว่าตัวที่เคยเจอ
-        if (diff <= TEN_MONTHS_MS && diff < minDiff) {
+        // ต้องอยู่ภายในกรอบไม่เกิน 6 เดือน และระยะห่างน้อยกว่าตัวที่เคยเจอ
+        if (diff <= SIX_MONTHS_MS && diff < minDiff) {
           minDiff = diff;
           closestMonth = m;
         }
       });
 
-      // ถ้าหาในกรอบ ±10 เดือน ทั้งย้อนหลังและไปข้างหน้าไม่เจอเลย ให้แสดง N/A
+      // ถ้าหาในกรอบ ±6 เดือน ทั้งย้อนหลังและไปข้างหน้าไม่เจอเลย ให้แสดง N/A
       if (!closestMonth) return null;
 
       const startMonth = closestMonth;
@@ -2118,10 +2118,10 @@
 
       if(trailingGrid) {
         const periods = [
+          { label: '3 เดือนย้อนหลัง', months: 3, isAnnualized: false },
           { label: '6 เดือนย้อนหลัง', months: 6, isAnnualized: false },
           { label: '1 ปีย้อนหลัง', months: 12, isAnnualized: false },
-          { label: '3 ปีย้อนหลัง (ต่อปี)', months: 36, isAnnualized: true },
-          { label: '5 ปีย้อนหลัง (ต่อปี)', months: 60, isAnnualized: true }
+          { label: '2 ปีย้อนหลัง', months: 24, isAnnualized: false }
         ];
 
         const targetEndMonth = endM;
