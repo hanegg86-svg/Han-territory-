@@ -85,13 +85,15 @@ async function processImageWithGemini(event) {
       const { base64Data, mimeType } = await readFileAsBase64(file);
 
       const promptText = `
-        Analyze this portfolio/mutual fund image.
+        Analyze this screenshot. It could be a Portfolio Overview, Mutual Fund list, or Bond/Debenture table.
+        
         Return ONLY a clean JSON object with two fields:
-        1. "items": Array of objects for mutual funds/symbols with NAV or Amount [{"symbol": "K-SF-SSF", "nav": 10.45, "amount": 10000}]
-        2. "portfolio": Object for portfolio breakdown if present (e.g. {"cash": 86172.96, "stock": 157320.00})
+        1. "portfolio": If it is a Portfolio Overview showing "รายละเอียดสินทรัพย์", extract cash and stock amounts (e.g. {"cash": 86173.00, "stock": 158240.00}). Set to null if not present.
+        2. "items": Array of fund/stock/debenture items with unit prices/NAV (e.g. [{"symbol": "GULF300A", "nav": 1010.46}, {"symbol": "K-SF-SSF", "nav": 11.9896}]).
+           - Map the price value (whether it is NAV, Market unit price, or unit price) directly to "nav".
 
         Return strictly valid JSON syntax without markdown blocks:
-        {"items": [], "portfolio": {"cash": 0, "stock": 0}}
+        {"portfolio": null, "items": []}
       `;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
@@ -114,6 +116,7 @@ async function processImageWithGemini(event) {
       const jsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsedData = JSON.parse(jsonStr);
 
+      // กรณีที่ 1: หน้าสรุปพอร์ตหุ้น + เงินสด (อัปเดตลงช่องมูลค่ารวมโดยตรง)
       if (parsedData.portfolio) {
         const cashVal = parseFloat(parsedData.portfolio.cash) || 0;
         const stockVal = parseFloat(parsedData.portfolio.stock) || 0;
@@ -137,13 +140,13 @@ async function processImageWithGemini(event) {
         }
       }
 
+      // กรณีที่ 2: หน้าตารางกองทุนรวม / หุ้นกู้ / ตราสารหนี้ (อัปเดตลงช่อง NAV)
       if (Array.isArray(parsedData.items) && parsedData.items.length > 0) {
         parsedData.items.forEach(item => {
           const scannedCode = (item.symbol || '').toUpperCase().trim();
           const navVal = parseFloat(item.nav);
-          const amountVal = parseFloat(item.amount);
 
-          if (scannedCode) {
+          if (scannedCode && !isNaN(navVal) && navVal > 0) {
             const matchedFund = db.funds.find(f => {
               const fSymbol = (f.symbol || '').toUpperCase().trim();
               const fName = (f.name || '').toUpperCase().trim();
@@ -151,20 +154,11 @@ async function processImageWithGemini(event) {
             });
 
             if (matchedFund) {
-              if (!isNaN(navVal) && navVal > 0) {
-                const navEl = document.getElementById(`entry-nav-${matchedFund.id}`);
-                if (navEl) {
-                  navEl.value = navVal;
-                  autoCalcMonthlyFund(matchedFund.id, 'nav');
-                  matchedCount++;
-                }
-              } else if (!isNaN(amountVal) && amountVal > 0) {
-                const totalEl = document.getElementById(`entry-${matchedFund.id}`);
-                if (totalEl) {
-                  totalEl.value = formatNumber(amountVal);
-                  autoCalcMonthlyFund(matchedFund.id, 'total');
-                  matchedCount++;
-                }
+              const navEl = document.getElementById(`entry-nav-${matchedFund.id}`);
+              if (navEl) {
+                navEl.value = navVal; // วางราคา NAV/Market (เช่น 1010.46 หรือ 11.9896)
+                autoCalcMonthlyFund(matchedFund.id, 'nav'); // ระบบคูณจำนวนหน่วยแล้วคำนวณยอดรวมให้อัตโนมัติ
+                matchedCount++;
               }
             }
           }
