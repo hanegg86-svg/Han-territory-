@@ -30,11 +30,22 @@ const CHART_COLORS = [
 
 const SUB_COLORS = ['#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#64748b', '#06b6d4'];
 
-// ================= UTILS =================
+// ================= UTILS & SANITIZATION =================
 function generateId() { return 'f_' + Math.random().toString(36).substr(2, 9); }
 function getCurrentMonth() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function formatNumber(num) { return (num || 0).toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 function parseLocalNumber(str) { if(!str) return 0; const v = parseFloat(String(str).replace(/[^0-9.-]+/g, '')); return isNaN(v) ? 0 : v; }
+
+// ✅ ADDED: ฟังก์ชันช่วยทำ Sanitization เพื่อป้องกัน XSS
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 function showToast(msg) {
   const toast = document.getElementById('global-toast');
@@ -211,7 +222,10 @@ function exportToExcel() {
   });
 
   let txData = [["วันที่ทำรายการ", "ชื่อบัญชี/กองทุน", "ประเภทรายการ", "จำนวนเงิน (บาท)"]];
-  const sortedTx = [...db.transactions].sort((a, b) => new Date(a.date) - new Date(a.date));
+  
+  // ✅ FIX: แก้ไข Bug การเรียงลำดับวันที่ธุรกรรม จาก (a.date - a.date) เป็น (a.date - b.date)
+  const sortedTx = [...db.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+  
   sortedTx.forEach(t => {
     const fund = db.funds.find(f => f.id === t.fundId);
     const fundName = fund ? `${fund.name} (${fund.symbol || ''})` : 'ไม่ทราบชื่อกองทุน';

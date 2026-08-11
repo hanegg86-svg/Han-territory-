@@ -40,19 +40,23 @@ function renderSetupTab() {
   Object.values(db.categories || {}).forEach(cat => {
     const catFunds = (db.funds || []).filter(f => f.catId === cat.id);
     let html = `<div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
-        <h3 class="font-bold text-${cat.color}-600 mb-3 border-b border-slate-100 pb-2">${cat.name}</h3>
+        <h3 class="font-bold text-${cat.color}-600 mb-3 border-b border-slate-100 pb-2">${escapeHtml(cat.name)}</h3>
         <div class="space-y-4">`;
     if (catFunds.length === 0) html += `<p class="text-xs text-slate-400">ยังไม่มีข้อมูลในหมวดนี้</p>`;
     
     catFunds.forEach(f => {
+      // ✅ FIX: ป้องกัน XSS ด้วย escapeHtml()
+      const safeName = escapeHtml(f.name || '');
+      const safeSymbol = escapeHtml(f.symbol || '');
+
       html += `
         <div class="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-3">
           <div class="flex justify-between items-center gap-2">
             <div class="flex-1 space-y-1">
-              <input type="text" value="${f.name || ''}" onchange="updateFundName('${f.id}', this.value)" placeholder="ชื่อเรียกกองทุน" class="bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none text-sm font-bold text-slate-800 w-full">
+              <input type="text" value="${safeName}" onchange="updateFundName('${f.id}', this.value)" placeholder="ชื่อเรียกกองทุน" class="bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none text-sm font-bold text-slate-800 w-full">
               <div class="flex items-center space-x-1.5">
                 <span class="text-[10px] font-bold text-slate-400">รหัส:</span>
-                <input type="text" value="${f.symbol || ''}" onchange="updateFundSymbol('${f.id}', this.value)" placeholder="รหัสสแกน AI (เช่น K-SF-SSF)" class="bg-white border border-slate-300 focus:border-blue-500 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-blue-800 uppercase outline-none">
+                <input type="text" value="${safeSymbol}" onchange="updateFundSymbol('${f.id}', this.value)" placeholder="รหัสสแกน AI (เช่น K-SF-SSF)" class="bg-white border border-slate-300 focus:border-blue-500 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-blue-800 uppercase outline-none">
               </div>
             </div>
             <button onclick="deleteFund('${f.id}')" class="text-rose-400 hover:text-rose-600 p-1.5"><i class="fa-solid fa-trash-can text-md"></i></button>
@@ -62,7 +66,7 @@ function renderSetupTab() {
             <div class="flex flex-wrap gap-1.5 items-center">
               ${(f.subCategories || []).map(sub => `
                 <span class="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">
-                  ${sub.name} (${sub.weight}%)
+                  ${escapeHtml(sub.name)} (${sub.weight}%)
                   <button onclick="deleteSubCategory('${f.id}', '${sub.id}')" class="ml-1 text-blue-400 hover:text-blue-600"><i class="fa-solid fa-xmark"></i></button>
                 </span>
               `).join('')}
@@ -266,7 +270,7 @@ function renderEntryForm() {
     if (catFunds.length === 0) return;
     let html = `
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-        <h3 class="font-bold text-${cat.color}-600 mb-4 uppercase tracking-wide">${cat.name}</h3>
+        <h3 class="font-bold text-${cat.color}-600 mb-4 uppercase tracking-wide">${escapeHtml(cat.name)}</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
     
     catFunds.forEach(f => {
@@ -293,11 +297,14 @@ function renderEntryForm() {
       
       const showNavAndUnits = (cat.id !== 'high' && cat.id !== 'ins');
 
+      const safeFundName = escapeHtml(f.name);
+      const safeFundSymbol = escapeHtml(f.symbol || f.name);
+
       html += `
         <div class="bg-slate-50 p-3.5 rounded-lg border border-slate-200 relative space-y-2">
           <div class="flex justify-between items-center">
-            <label class="block text-xs font-bold text-slate-800 truncate">${f.name}</label>
-            <span class="text-[10px] font-mono font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">${f.symbol || f.name}</span>
+            <label class="block text-xs font-bold text-slate-800 truncate">${safeFundName}</label>
+            <span class="text-[10px] font-mono font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">${safeFundSymbol}</span>
           </div>
           
           ${showNavAndUnits ? `
@@ -698,12 +705,12 @@ function initChartsTab() {
   const uniqueSubs = getAllUniqueSubCategories();
   if(uniqueSubs.length > 0) {
     uniqueSubs.forEach(subName => {
-      select.innerHTML += `<option value="SUBCAT_${subName}">📈 [แนวโน้มตามกลุ่มประเภทย่อย: ${subName}]</option>`;
+      select.innerHTML += `<option value="SUBCAT_${escapeHtml(subName)}">📈 [แนวโน้มตามกลุ่มประเภทย่อย: ${escapeHtml(subName)}]</option>`;
     });
   }
 
   (db.funds || []).forEach(f => {
-    select.innerHTML += `<option value="${f.id}">กองทุน: ${f.name} (${f.symbol || ''})</option>`;
+    select.innerHTML += `<option value="${f.id}">กองทุน: ${escapeHtml(f.name)} (${escapeHtml(f.symbol || '')})</option>`;
   });
 
   const months = Object.keys(db.records || {}).sort();
@@ -781,14 +788,12 @@ function monthToTotalMonths(monthStr) {
   return (year || 0) * 12 + (month || 0);
 }
 
-// ฟังก์ชันคำนวณผลตอบแทนจากผลต่างกำไรระหว่างเส้นกราฟมูลค่าตลาดและเส้นกราฟต้นทุนสะสม
 function calculatePeriodReturns(filterId, endMonthStr) {
   const allMonths = Object.keys(db.records || {}).sort();
   if (!allMonths.includes(endMonthStr)) return null;
 
   const [endYear, endMonth] = endMonthStr.split('-').map(Number);
   
-  // ปลายทาง (End)
   const endMV = getMarketValueByFilter(filterId, endMonthStr) || 0;
   const endCost = getCostBasisByFilter(filterId, endMonthStr) || 0;
   const endProfit = endMV - endCost;
@@ -821,35 +826,27 @@ function calculatePeriodReturns(filterId, endMonthStr) {
 
     let startMonthToUse = allMonths.filter(m => m <= targetMonthStr).pop() || inceptionMonth;
     
-    // ต้นทาง (Start)
     const startMV = getMarketValueByFilter(filterId, startMonthToUse) || 0;
     const startCost = getCostBasisByFilter(filterId, startMonthToUse) || 0;
     const startProfit = startMV - startCost;
 
-    // 1. ผลต่างกำไรสุทธิในช่วงเวลา
     const profitDiff = endProfit - startProfit;
-
-    // 2. ต้นทุนเฉลี่ยของช่วงเวลา
     const avgCost = (startCost + endCost) / 2;
 
-    // 🛑 ป้องกันการหารด้วยศูนย์ หากต้นทุนเฉลี่ยเป็น 0
     if (avgCost <= 0 || isNaN(avgCost)) {
       results[p.key] = { returnPct: null, matchedMonth: startMonthToUse, isAnnualized: p.isAnnualized, label: p.name };
       return;
     }
 
-    // 3. ผลตอบแทน (%)
     let returnPct = (profitDiff / avgCost) * 100;
 
     const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(startMonthToUse);
     const yearsDiff = actualMonthsDiff / 12;
 
-    // 4. หารด้วยจำนวนปีสำหรับรายการย้อนหลังเกิน 1 ปี
     if (p.isAnnualized && yearsDiff > 1) {
       returnPct = returnPct / yearsDiff;
     }
 
-    // 🛑 ป้องกันค่า NaN หรือ Infinity
     if (isNaN(returnPct) || !isFinite(returnPct)) {
       returnPct = null;
     }
@@ -1102,10 +1099,11 @@ function renderSubCatCheckboxes(uniqueSubs) {
 
   uniqueSubs.forEach(sub => {
     const isChecked = selectedSubCatsForCompare.includes(sub);
+    const safeSub = escapeHtml(sub);
     container.innerHTML += `
       <label class="flex items-center space-x-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:bg-slate-50 text-xs font-bold">
-        <input type="checkbox" value="${sub}" ${isChecked ? 'checked' : ''} onchange="onSubCatFilterChange(this)" class="rounded text-blue-600 focus:ring-blue-500">
-        <span class="text-slate-700">${sub}</span>
+        <input type="checkbox" value="${safeSub}" ${isChecked ? 'checked' : ''} onchange="onSubCatFilterChange(this)" class="rounded text-blue-600 focus:ring-blue-500">
+        <span class="text-slate-700">${safeSub}</span>
       </label>
     `;
   });
@@ -1147,11 +1145,12 @@ function renderAllocationTargetInputs() {
     if (savedWeight === undefined) {
       savedWeight = index === 0 ? 100 : 0; 
     }
+    const safeSubName = escapeHtml(subName);
 
     container.innerHTML += `
       <div>
-        <label class="block text-xs font-bold text-slate-700 mb-1">${subName} (%)</label>
-        <input type="number" id="alloc-target-${subName}" data-subname="${subName}" value="${savedWeight}" min="0" max="100" 
+        <label class="block text-xs font-bold text-slate-700 mb-1">${safeSubName} (%)</label>
+        <input type="number" id="alloc-target-${safeSubName}" data-subname="${safeSubName}" value="${savedWeight}" min="0" max="100" 
                oninput="calculateAllocation(true)" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-bold outline-none subcat-target-input">
       </div>
     `;
@@ -1260,11 +1259,12 @@ function calculateAllocation(shouldSaveState = false) {
     const isOver = diffPct > 0;
     const formattedDiffPct = (diffPct >= 0 ? '+' : '') + diffPct.toFixed(1) + '%';
     const formattedDiffCash = (diffCash >= 0 ? '+' : '') + formatNumber(diffCash) + ' บ.';
+    const safeSubName = escapeHtml(subName);
 
     if(tableBody) {
       tableBody.innerHTML += `
         <tr class="border-b border-slate-100 hover:bg-slate-50">
-          <td class="p-3 font-bold text-slate-800">${subName}</td>
+          <td class="p-3 font-bold text-slate-800">${safeSubName}</td>
           <td class="p-3 text-right font-mono">${targetPct}%</td>
           <td class="p-3 text-right font-mono text-slate-900">฿${formatNumber(cVal)}</td>
           <td class="p-3 text-right font-mono">${currentPct.toFixed(1)}%</td>
@@ -1276,9 +1276,9 @@ function calculateAllocation(shouldSaveState = false) {
 
     if (totalWealthInGroup > 0 && Math.abs(diffPct) >= 1.0) {
       if (isOver) {
-        overweightAdvice.push(`🔴 <b>${subName}</b> มีสัดส่วนล้นในกลุ่มเปรียบเทียบอยู่ <b>${diffPct.toFixed(1)}%</b> (คิดเป็นเงินเกินประมาณ <b>${formatNumber(Math.abs(diffCash))} บาท</b>)`);
+        overweightAdvice.push(`🔴 <b>${safeSubName}</b> มีสัดส่วนล้นในกลุ่มเปรียบเทียบอยู่ <b>${diffPct.toFixed(1)}%</b> (คิดเป็นเงินเกินประมาณ <b>${formatNumber(Math.abs(diffCash))} บาท</b>)`);
       } else {
-        underweightAdvice.push(`🟢 <b>${subName}</b> มีสัดส่วนขาดเป้าในกลุ่มอยู่ <b>${Math.abs(diffPct).toFixed(1)}%</b> (ควรเติมเงินเพิ่มประมาณ <b>${formatNumber(Math.abs(diffCash))} บาท</b>)`);
+        underweightAdvice.push(`🟢 <b>${safeSubName}</b> มีสัดส่วนขาดเป้าในกลุ่มอยู่ <b>${Math.abs(diffPct).toFixed(1)}%</b> (ควรเติมเงินเพิ่มประมาณ <b>${formatNumber(Math.abs(diffCash))} บาท</b>)`);
       }
     }
   });
@@ -1555,13 +1555,13 @@ function initTransactionsTab() {
   if (!db.funds || db.funds.length === 0) {
     select.innerHTML = '<option value="">-- ยังไม่มีรายชื่อกองทุน --</option>';
   } else {
-    db.funds.forEach(f => { select.innerHTML += `<option value="${f.id}">${f.name} (${f.symbol || ''})</option>`; });
+    db.funds.forEach(f => { select.innerHTML += `<option value="${f.id}">${escapeHtml(f.name)} (${escapeHtml(f.symbol || '')})</option>`; });
   }
 
   const filterSelect = document.getElementById('tx-filter-select');
   if(!filterSelect) return;
   filterSelect.innerHTML = '<option value="ALL">-- แสดงทั้งหมด --</option>';
-  (db.funds || []).forEach(f => { filterSelect.innerHTML += `<option value="${f.id}">${f.name} (${f.symbol || ''})</option>`; });
+  (db.funds || []).forEach(f => { filterSelect.innerHTML += `<option value="${f.id}">${escapeHtml(f.name)} (${escapeHtml(f.symbol || '')})</option>`; });
 
   const today = new Date().toISOString().split('T')[0];
   const dateInput = document.getElementById('tx-date');
@@ -1622,7 +1622,7 @@ function renderTransactionsTable() {
 
   sortedTx.forEach(t => {
     const fund = (db.funds || []).find(f => f.id === t.fundId);
-    const fundName = fund ? `${fund.name} (${fund.symbol || ''})` : 'ไม่พบข้อมูลกองทุน';
+    const fundName = fund ? `${escapeHtml(fund.name)} (${escapeHtml(fund.symbol || '')})` : 'ไม่พบข้อมูลกองทุน';
     let typeBadge = '';
     if (t.type === 'BUY') typeBadge = '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded font-bold">ซื้อ</span>';
     if (t.type === 'SELL') typeBadge = '<span class="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs rounded font-bold">ขาย</span>';
