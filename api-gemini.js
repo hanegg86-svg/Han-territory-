@@ -1,57 +1,3 @@
-// ================= GEMINI API KEY MANAGEMENT =================
-function getStoredApiKey() { return localStorage.getItem('GEMINI_API_KEY') || ''; }
-
-function saveApiKey() {
-  const input = document.getElementById('gemini-api-key-input');
-  if(!input) return;
-  const key = input.value.trim();
-  if(!key) return alert('กรุณากรอก API Key ก่อนบันทึก');
-  localStorage.setItem('GEMINI_API_KEY', key);
-  updateApiKeyStatusBadge();
-  showToast('บันทึก Gemini API Key เรียบร้อยแล้ว');
-}
-
-function clearApiKey() {
-  if(confirm('ยืนยันลบ Gemini API Key ในเครื่องหรือไม่?')) {
-    localStorage.removeItem('GEMINI_API_KEY');
-    const input = document.getElementById('gemini-api-key-input');
-    if(input) input.value = '';
-    updateApiKeyStatusBadge();
-    showToast('ลบ API Key เรียบร้อยแล้ว');
-  }
-}
-
-function toggleApiKeyVisibility() {
-  const input = document.getElementById('gemini-api-key-input');
-  const icon = document.getElementById('toggle-key-icon');
-  if(!input || !icon) return;
-  if (input.type === 'password') {
-    input.type = 'text';
-    icon.classList.replace('fa-eye', 'fa-eye-slash');
-  } else {
-    input.type = 'password';
-    icon.classList.replace('fa-eye-slash', 'fa-eye');
-  }
-}
-
-function updateApiKeyStatusBadge() {
-  const badge = document.getElementById('api-key-status-badge');
-  const input = document.getElementById('gemini-api-key-input');
-  const key = getStoredApiKey();
-
-  if(input && key) input.value = key;
-
-  if(badge) {
-    if(key) {
-      badge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
-      badge.innerHTML = `<i class="fa-solid fa-circle-check mr-1.5"></i> พร้อมใช้งาน Gemini API Key`;
-    } else {
-      badge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30";
-      badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1.5"></i> ยังไม่ได้บันทึก API Key`;
-    }
-  }
-}
-
 // ================= GEMINI AI OCR SCAN =================
 async function processImageWithGemini(event) {
   const files = event.target.files;
@@ -64,7 +10,8 @@ async function processImageWithGemini(event) {
     return;
   }
 
-  showToast(`กำลังสแกนรูปภาพจำนวน ${files.length} ภาพ ด้วย Gemini AI...`);
+  // อัปเดตข้อความแจ้งเตือนผู้ใช้เป็นโมเดล Gemini 3.5 Flash-Lite
+  showToast(`กำลังสแกนรูปภาพจำนวน ${files.length} ภาพ ด้วย Gemini 3.5 Flash-Lite AI...`);
 
   const readFileAsBase64 = (file) => {
     return new Promise((resolve, reject) => {
@@ -99,26 +46,48 @@ async function processImageWithGemini(event) {
         2. Bond/Debenture/Mutual Fund tables: set "items" array with "symbol" (Code) and "nav" (Market unit price / NAV).
       `;
 
-      // API Endpoint with standard fallback compatibility
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      // รายชื่อ Model โดยตั้งค่า gemini-3.5-flash-lite เป็นตัวหลัก
+      const modelsToTry = [
+        'gemini-3.5-flash-lite',
+        'gemini-2.5-flash-lite',
+        'gemini-1.5-flash'
+      ];
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: promptText },
-              { inline_data: { mime_type: mimeType, data: base64Data } }
-            ]
-          }]
-        })
-      });
+      let resData = null;
+      let lastError = null;
 
-      const resData = await response.json();
-      if (resData.error) {
-        console.error("Gemini Error:", resData.error);
-        alert('Gemini Error: ' + resData.error.message);
+      // Loop ยิง API ด้วยโมเดลหลัก หากมีปัญหาจะเปลี่ยนโมเดลสำรองอัตโนมัติ
+      for (const model of modelsToTry) {
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: promptText },
+                  { inline_data: { mime_type: mimeType, data: base64Data } }
+                ]
+              }]
+            })
+          });
+
+          const data = await response.json();
+          if (!data.error) {
+            resData = data;
+            break; // ยิงสำเร็จ ให้ลูปจบการทำงาน
+          } else {
+            lastError = data.error;
+            console.warn(`Model ${model} failed, trying next fallback...`, data.error);
+          }
+        } catch (fetchErr) {
+          lastError = fetchErr;
+        }
+      }
+
+      if (!resData) {
+        console.error("Gemini All Models Error:", lastError);
+        alert('Gemini Error: ' + (lastError?.message || 'ไม่สามารถเชื่อมต่อ Gemini API ได้'));
         continue;
       }
 
@@ -170,7 +139,7 @@ async function processImageWithGemini(event) {
         }
       }
 
-      // 2. สแกนหน้ากองทุน / หุ้นกู้ / ตราสารหนี้ (FIX ACCURATE MATCHING BUG)
+      // 2. สแกนหน้ากองทุน / หุ้นกู้ / ตราสารหนี้
       if (Array.isArray(parsedData.items) && parsedData.items.length > 0) {
         parsedData.items.forEach(item => {
           const scannedCode = (item.symbol || '').toUpperCase().trim();
@@ -186,10 +155,8 @@ async function processImageWithGemini(event) {
               const cleanSymbol = fSymbol.replace(/[^A-Z0-9]/g, '');
               const cleanName = fName.replace(/[^A-Z0-9]/g, '');
 
-              // Exact Match
               if (cleanSymbol === cleanScanned || cleanName === cleanScanned) return true;
 
-              // Safe Prefix Match for Bonds/Series codes (Minimum 4 chars overlap)
               if (cleanSymbol.length >= 4 && cleanScanned.length >= 4) {
                 if (cleanSymbol === cleanScanned) return true;
                 if (cleanScanned.startsWith(cleanSymbol) && (cleanScanned.length - cleanSymbol.length <= 4)) return true;

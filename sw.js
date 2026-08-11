@@ -1,6 +1,6 @@
-const CACHE_NAME = 'wealth-tracker-v3.7.4';
+// อัปเดตเปลี่ยน Version เพื่อให้ Browser โหลดโค้ด api-gemini.js ตัวใหม่
+const CACHE_NAME = 'wealth-tracker-v3.8.0';
 
-// รายการไฟล์ทั้งหมดที่ต้องการให้ Service Worker ทำการ Caching ไว้สำหรับ Offline Mode
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -41,6 +41,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // ยกเว้นการทำ Caching สำหรับ API Call ของ Gemini
   if (event.request.url.includes('generativelanguage.googleapis.com')) {
     return;
   }
