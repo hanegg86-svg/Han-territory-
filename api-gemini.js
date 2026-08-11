@@ -64,7 +64,7 @@ async function processImageWithGemini(event) {
     return;
   }
 
-  showToast(`กำลังสแกนรูปภาพจำนวน ${files.length} ภาพ ด้วย Gemini 3.1 Flash-Lite AI...`);
+  showToast(`กำลังสแกนรูปภาพจำนวน ${files.length} ภาพ ด้วย Gemini AI...`);
 
   const readFileAsBase64 = (file) => {
     return new Promise((resolve, reject) => {
@@ -99,7 +99,10 @@ async function processImageWithGemini(event) {
         2. Bond/Debenture/Mutual Fund tables: set "items" array with "symbol" (Code) and "nav" (Market unit price / NAV).
       `;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
+      // API Endpoint with standard fallback compatibility
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -119,6 +122,11 @@ async function processImageWithGemini(event) {
         continue;
       }
 
+      if (!resData.candidates || resData.candidates.length === 0 || !resData.candidates[0].content) {
+        alert('ไม่พบผลลัพธ์การสแกนจาก Gemini AI');
+        continue;
+      }
+
       let rawText = resData.candidates[0].content.parts[0].text.trim();
       
       // ล้าง Markdown Block ออกแบบครอบคลุม
@@ -129,7 +137,14 @@ async function processImageWithGemini(event) {
         rawText = rawText.substring(firstBrace, lastBrace + 1);
       }
 
-      const parsedData = JSON.parse(rawText);
+      let parsedData;
+      try {
+        parsedData = JSON.parse(rawText);
+      } catch (e) {
+        console.error("JSON Parsing Error:", e, rawText);
+        alert("ไม่สามารถแปลงข้อมูลที่ AI อ่านได้เป็น JSON รูปแบบถูกต้อง");
+        continue;
+      }
 
       // 1. สแกนหน้าพอร์ตหุ้น / เงินสด
       if (parsedData.portfolio && (parsedData.portfolio.cash > 0 || parsedData.portfolio.stock > 0)) {
@@ -155,7 +170,7 @@ async function processImageWithGemini(event) {
         }
       }
 
-      // 2. สแกนหน้ากองทุน / หุ้นกู้ / ตราสารหนี้
+      // 2. สแกนหน้ากองทุน / หุ้นกู้ / ตราสารหนี้ (FIX ACCURATE MATCHING BUG)
       if (Array.isArray(parsedData.items) && parsedData.items.length > 0) {
         parsedData.items.forEach(item => {
           const scannedCode = (item.symbol || '').toUpperCase().trim();
@@ -167,11 +182,20 @@ async function processImageWithGemini(event) {
               const fName = (f.name || '').toUpperCase().trim();
               if (!fSymbol && !fName) return false;
 
-              // เช็กแมตช์รหัสแบบยืดหยุ่น (แมตช์ทั้งกรณี SGP292A และ SGP292A12)
-              return fSymbol === scannedCode || 
-                     fName === scannedCode || 
-                     scannedCode.startsWith(fSymbol) || 
-                     fSymbol.startsWith(scannedCode);
+              const cleanScanned = scannedCode.replace(/[^A-Z0-9]/g, '');
+              const cleanSymbol = fSymbol.replace(/[^A-Z0-9]/g, '');
+              const cleanName = fName.replace(/[^A-Z0-9]/g, '');
+
+              // Exact Match
+              if (cleanSymbol === cleanScanned || cleanName === cleanScanned) return true;
+
+              // Safe Prefix Match for Bonds/Series codes (Minimum 4 chars overlap)
+              if (cleanSymbol.length >= 4 && cleanScanned.length >= 4) {
+                if (cleanSymbol === cleanScanned) return true;
+                if (cleanScanned.startsWith(cleanSymbol) && (cleanScanned.length - cleanSymbol.length <= 4)) return true;
+                if (cleanSymbol.startsWith(cleanScanned) && (cleanSymbol.length - cleanScanned.length <= 4)) return true;
+              }
+              return false;
             });
 
             if (matchedFund) {

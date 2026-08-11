@@ -5,6 +5,7 @@ const chartValueLabelsPlugin = {
     if(chart.config.type !== 'line') return;
     const ctx = chart.ctx;
     const labelCount = chart.data.labels.length;
+    if (labelCount === 0) return;
     const showAll = labelCount <= 12; 
     
     ctx.save();
@@ -781,7 +782,7 @@ function monthToTotalMonths(monthStr) {
   return (year || 0) * 12 + (month || 0);
 }
 
-// ฟังก์ชันคำนวณผลตอบแทนจากผลต่างกำไรระหว่างเส้นกราฟมูลค่าตลาดและเส้นกราฟต้นทุนสะสม
+// FIX BUG: Calculation Return when Initial Base Cost is Zero / Low
 function calculatePeriodReturns(filterId, endMonthStr) {
   const allMonths = Object.keys(db.records || {}).sort();
   if (!allMonths.includes(endMonthStr)) return null;
@@ -829,17 +830,16 @@ function calculatePeriodReturns(filterId, endMonthStr) {
     // 1. ผลต่างกำไรสุทธิในช่วงเวลา
     const profitDiff = endProfit - startProfit;
 
-    // 2. ต้นทุนเฉลี่ยของช่วงเวลา
-    const avgCost = (startCost + endCost) / 2;
+    // 2. ป้องกันการหารด้วยศูนย์ กรณี Cost Basis 0 หรือขยับน้อย
+    const baseCost = startCost > 0 ? startCost : endCost;
 
-    // 🛑 ป้องกันการหารด้วยศูนย์ หากต้นทุนเฉลี่ยเป็น 0
-    if (avgCost <= 0 || isNaN(avgCost)) {
+    if (baseCost <= 0 || isNaN(baseCost)) {
       results[p.key] = { returnPct: null, matchedMonth: startMonthToUse, isAnnualized: p.isAnnualized, label: p.name };
       return;
     }
 
     // 3. ผลตอบแทน (%)
-    let returnPct = (profitDiff / avgCost) * 100;
+    let returnPct = (profitDiff / baseCost) * 100;
 
     const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(startMonthToUse);
     const yearsDiff = actualMonthsDiff / 12;
