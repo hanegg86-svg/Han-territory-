@@ -781,20 +781,22 @@ function monthToTotalMonths(monthStr) {
   return (year || 0) * 12 + (month || 0);
 }
 
-// ฟังก์ชันคำนวณผลตอบแทนจากจุดบนเส้นกราฟมูลค่าตลาดโดยตรง (Point-to-Point Growth Rate & CAGR)
+// ฟังก์ชันคำนวณผลตอบแทนจากผลต่างกำไรระหว่างเส้นกราฟมูลค่าตลาดและเส้นกราฟต้นทุนสะสม
 function calculatePeriodReturns(filterId, endMonthStr) {
   const allMonths = Object.keys(db.records || {}).sort();
   if (!allMonths.includes(endMonthStr)) return null;
 
   const [endYear, endMonth] = endMonthStr.split('-').map(Number);
   
-  // มูลค่าปลายงวดจากเส้นกราฟ
+  // ปลายทาง (End)
   const endMV = getMarketValueByFilter(filterId, endMonthStr) || 0;
+  const endCost = getCostBasisByFilter(filterId, endMonthStr) || 0;
+  const endProfit = endMV - endCost;
 
-  // ป้องกันกรณีมูลค่าปลายงวดเป็น 0
-  if (endMV <= 0) return null;
+  const inceptionMonth = allMonths.find(m => {
+    return getMarketValueByFilter(filterId, m) > 0 || getCostBasisByFilter(filterId, m) > 0;
+  });
 
-  const inceptionMonth = allMonths.find(m => getMarketValueByFilter(filterId, m) > 0);
   if (!inceptionMonth) return null;
 
   const periods = [
@@ -812,7 +814,6 @@ function calculatePeriodReturns(filterId, endMonthStr) {
     const targetM = targetTotalMonths - (targetYear * 12);
     const targetMonthStr = `${targetYear}-${String(targetM).padStart(2, '0')}`;
 
-    // ถ้าย้อนหลังเกินช่วงข้อมูลที่มี ให้ส่งคืนค่า null (แสดง N/A)
     if (targetMonthStr < inceptionMonth) {
       results[p.key] = { returnPct: null, matchedMonth: null, isAnnualized: p.isAnnualized, label: p.name };
       return;
@@ -820,28 +821,35 @@ function calculatePeriodReturns(filterId, endMonthStr) {
 
     let startMonthToUse = allMonths.filter(m => m <= targetMonthStr).pop() || inceptionMonth;
     
-    // มูลค่าต้นงวดจากเส้นกราฟ
+    // ต้นทาง (Start)
     const startMV = getMarketValueByFilter(filterId, startMonthToUse) || 0;
+    const startCost = getCostBasisByFilter(filterId, startMonthToUse) || 0;
+    const startProfit = startMV - startCost;
 
-    // 🛑 ป้องกันการหารด้วยศูนย์ หากจุดเริ่มงวดบนกราฟเป็น 0
-    if (startMV <= 0) {
+    // 1. ผลต่างกำไรสุทธิในช่วงเวลา
+    const profitDiff = endProfit - startProfit;
+
+    // 2. ต้นทุนเฉลี่ยของช่วงเวลา
+    const avgCost = (startCost + endCost) / 2;
+
+    // 🛑 ป้องกันการหารด้วยศูนย์ หากต้นทุนเฉลี่ยเป็น 0
+    if (avgCost <= 0 || isNaN(avgCost)) {
       results[p.key] = { returnPct: null, matchedMonth: startMonthToUse, isAnnualized: p.isAnnualized, label: p.name };
       return;
     }
 
-    let returnPct = 0;
+    // 3. ผลตอบแทน (%)
+    let returnPct = (profitDiff / avgCost) * 100;
+
     const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(startMonthToUse);
     const yearsDiff = actualMonthsDiff / 12;
 
+    // 4. หารด้วยจำนวนปีสำหรับรายการย้อนหลังเกิน 1 ปี
     if (p.isAnnualized && yearsDiff > 1) {
-      // คำนวณแบบ CAGR (ผลตอบแทนทบต้นเฉลี่ยต่อปี)
-      returnPct = (Math.pow(endMV / startMV, 1 / yearsDiff) - 1) * 100;
-    } else {
-      // คำนวณแบบการเติบโตสุทธิทั่วไป
-      returnPct = ((endMV - startMV) / startMV) * 100;
+      returnPct = returnPct / yearsDiff;
     }
 
-    // 🛑 ป้องกันค่า NaN / Infinity
+    // 🛑 ป้องกันค่า NaN หรือ Infinity
     if (isNaN(returnPct) || !isFinite(returnPct)) {
       returnPct = null;
     }
@@ -895,7 +903,6 @@ function renderIndividualChart() {
 
   const latestProfit = latestMV - latestCost;
   
-  // 🛑 ป้องกัน Zero-division สำหรับสรุปการ์ดรวม
   let latestProfitPct = 0;
   if (latestCost > 0) {
     latestProfitPct = (latestProfit / latestCost) * 100;
@@ -1030,7 +1037,6 @@ function renderAnnualPerformanceTable(filterId) {
     const cost = getCostBasisByFilter(filterId, targetMonth) || 0;
     const profit = mv - cost;
     
-    // 🛑 ป้องกัน Zero-Division ในตารางรายปี
     let profitPct = 0;
     if (cost > 0) {
       profitPct = (profit / cost) * 100;
