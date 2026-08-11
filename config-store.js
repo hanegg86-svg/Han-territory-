@@ -39,8 +39,7 @@ function parseLocalNumber(str) { if(!str) return 0; const v = parseFloat(String(
 function showToast(msg) {
   const toast = document.getElementById('global-toast');
   if(!toast) return;
-  const msgEl = document.getElementById('toast-message');
-  if(msgEl) msgEl.innerText = msg;
+  document.getElementById('toast-message').innerText = msg;
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2500);
 }
@@ -48,7 +47,7 @@ function showToast(msg) {
 function checkEmptyState() {
   const warn = document.getElementById('empty-state-warning');
   if (!warn) return;
-  if (!db.funds || db.funds.length === 0) warn.classList.remove('hidden');
+  if (db.funds.length === 0) warn.classList.remove('hidden');
   else warn.classList.add('hidden');
 }
 
@@ -89,15 +88,10 @@ function updateStorageSizeDisplay() {
 function loadDB() {
   const saved = localStorage.getItem('ProWealthDB_v2');
   if (saved) {
-    try {
-      db = JSON.parse(saved);
-    } catch(e) {
-      console.error("Failed to parse local storage DB:", e);
-    }
+    db = JSON.parse(saved);
     if(!db.transactions) db.transactions = [];
     if(!db.planningSettings) db.planningSettings = {};
     if(!db.allocationSettings) db.allocationSettings = {};
-    if(!db.records) db.records = {};
     
     if (db.funds && db.funds.length > 0) {
       db.funds = db.funds.map(f => {
@@ -167,7 +161,6 @@ function restoreFromJson() {
       if(!db.transactions) db.transactions = [];
       if(!db.planningSettings) db.planningSettings = {};
       if(!db.allocationSettings) db.allocationSettings = {};
-      if(!db.records) db.records = {};
       
       if (db.funds && db.funds.length > 0) {
         db.funds = db.funds.map(f => {
@@ -192,7 +185,7 @@ function restoreFromJson() {
 }
 
 function exportToExcel() {
-  if (!db.funds || db.funds.length === 0 || Object.keys(db.records || {}).length === 0) {
+  if (db.funds.length === 0 || Object.keys(db.records).length === 0) {
     alert('ยังไม่มีข้อมูลสำหรับ Export ครับ');
     return;
   }
@@ -218,10 +211,7 @@ function exportToExcel() {
   });
 
   let txData = [["วันที่ทำรายการ", "ชื่อบัญชี/กองทุน", "ประเภทรายการ", "จำนวนเงิน (บาท)"]];
-  
-  // FIX BUG: Sort comparison correctly using a.date vs b.date
-  const sortedTx = [...(db.transactions || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
-  
+  const sortedTx = [...db.transactions].sort((a, b) => new Date(a.date) - new Date(a.date));
   sortedTx.forEach(t => {
     const fund = db.funds.find(f => f.id === t.fundId);
     const fundName = fund ? `${fund.name} (${fund.symbol || ''})` : 'ไม่ทราบชื่อกองทุน';

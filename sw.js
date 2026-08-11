@@ -1,25 +1,34 @@
-const CACHE_NAME = 'wealth-tracker-v4.0.0'; // อัปเดต Cache Version ใหม่
+const CACHE_NAME = 'wealth-tracker-v3.7.3';
 
-const STATIC_ASSETS = [
+// รายการไฟล์ทั้งหมดที่ต้องการให้ Service Worker ทำการ Caching ไว้สำหรับ Offline Mode
+const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './icon.png',
+  // JS Modules ทั้ง 4 ไฟล์
+  './config-store.js',
+  './api-gemini.js',
+  './modules-views.js',
+  './app.js',
+  // External Libraries
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js'
 ];
 
+// 1. Install Event: ทำการดาวน์โหลดและเก็บบันทึกไฟล์ลง Cache Storage
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Caching static assets');
-      return cache.addAll(STATIC_ASSETS);
+      console.log('[Service Worker] Caching all static assets');
+      return cache.addAll(ASSETS_TO_CACHE);
     }).then(() => self.skipWaiting())
   );
 });
 
+// 2. Activate Event: ลบ Cache เวอร์ชั่นเก่าทิ้งทันทีที่มีการอัปเดตเวอร์ชัน
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -35,34 +44,27 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// 3. Fetch Event: ดึงข้อมูลจาก Cache ก่อน หากไม่มีค่อยดึงจาก Network
 self.addEventListener('fetch', (event) => {
-  // 1. ยกเว้น Gemini API ไม่ให้ยุ่งกับ Cache
+  // ข้ามการทำ Caching สำหรับการเรียก Gemini API
   if (event.request.url.includes('generativelanguage.googleapis.com')) {
     return;
   }
 
-  const url = new URL(event.request.url);
-
-  // 2. สำหรับไฟล์ JS หลัก ให้ใช้ Network-First เพื่อให้ได้โค้ดล่าสุดเสมอ
-  if (url.pathname.endsWith('.js')) {
-    event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-          }
-          return networkResponse;
-        })
-        .catch(() => caches.match(event.request)) // ถ้าออฟไลน์ค่อยดึงจาก Cache
-    );
-    return;
-  }
-
-  // 3. สำหรับไฟล์อื่นๆ ใช้ Cache-First ตามปกติ
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request);
+      if (cachedResponse) {
+        // คืนค่าไฟล์จาก Cache และทำ Background Refresh
+        fetch(event.request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
+          }
+        }).catch(() => {/* Ignore network errors when offline */});
+        
+        return cachedResponse;
+      }
+      
+      return fetch(event.request);
     })
   );
 });
