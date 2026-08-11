@@ -37,8 +37,8 @@ function renderSetupTab() {
   if(!container) return;
   container.innerHTML = '';
 
-  Object.values(db.categories).forEach(cat => {
-    const catFunds = db.funds.filter(f => f.catId === cat.id);
+  Object.values(db.categories || {}).forEach(cat => {
+    const catFunds = (db.funds || []).filter(f => f.catId === cat.id);
     let html = `<div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
         <h3 class="font-bold text-${cat.color}-600 mb-3 border-b border-slate-100 pb-2">${cat.name}</h3>
         <div class="space-y-4">`;
@@ -49,7 +49,7 @@ function renderSetupTab() {
         <div class="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-3">
           <div class="flex justify-between items-center gap-2">
             <div class="flex-1 space-y-1">
-              <input type="text" value="${f.name}" onchange="updateFundName('${f.id}', this.value)" placeholder="ชื่อเรียกกองทุน" class="bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none text-sm font-bold text-slate-800 w-full">
+              <input type="text" value="${f.name || ''}" onchange="updateFundName('${f.id}', this.value)" placeholder="ชื่อเรียกกองทุน" class="bg-transparent border-b border-slate-300 focus:border-blue-500 outline-none text-sm font-bold text-slate-800 w-full">
               <div class="flex items-center space-x-1.5">
                 <span class="text-[10px] font-bold text-slate-400">รหัส:</span>
                 <input type="text" value="${f.symbol || ''}" onchange="updateFundSymbol('${f.id}', this.value)" placeholder="รหัสสแกน AI (เช่น K-SF-SSF)" class="bg-white border border-slate-300 focus:border-blue-500 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-blue-800 uppercase outline-none">
@@ -60,13 +60,13 @@ function renderSetupTab() {
 
           <div class="pt-1 border-t border-slate-200/60">
             <div class="flex flex-wrap gap-1.5 items-center">
-              ${f.subCategories.map(sub => `
+              ${(f.subCategories || []).map(sub => `
                 <span class="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">
                   ${sub.name} (${sub.weight}%)
                   <button onclick="deleteSubCategory('${f.id}', '${sub.id}')" class="ml-1 text-blue-400 hover:text-blue-600"><i class="fa-solid fa-xmark"></i></button>
                 </span>
               `).join('')}
-              ${f.subCategories.length < 4 ? `
+              ${(!f.subCategories || f.subCategories.length < 4) ? `
                 <button onclick="addSubCategory('${f.id}')" class="text-[10px] text-blue-600 hover:underline font-bold bg-white px-2 py-0.5 border border-blue-200 rounded">
                   <i class="fa-solid fa-plus mr-0.5"></i>เพิ่มประเภทย่อย
                 </button>
@@ -79,7 +79,7 @@ function renderSetupTab() {
     container.innerHTML += html;
   });
 
-  updateStorageSizeDisplay();
+  if (typeof updateStorageSizeDisplay === 'function') updateStorageSizeDisplay();
 }
 
 function addNewFund() {
@@ -92,11 +92,12 @@ function addNewFund() {
   const nameVal = nameInput.value.trim();
   const symbolVal = symbolInput && symbolInput.value.trim() !== '' ? symbolInput.value.trim().toUpperCase() : nameVal.toUpperCase();
 
+  if (!db.funds) db.funds = [];
   db.funds.push({
     id: generateId(),
     name: nameVal,
     symbol: symbolVal,
-    catId: catInput.value,
+    catId: catInput ? catInput.value : 'high',
     units: 0,
     subCategories: []
   });
@@ -109,7 +110,7 @@ function addNewFund() {
 }
 
 function updateFundSymbol(id, newSymbol) {
-  const fund = db.funds.find(f => f.id === id);
+  const fund = (db.funds || []).find(f => f.id === id);
   if (fund) { 
     fund.symbol = newSymbol.trim().toUpperCase(); 
     saveDB(); 
@@ -118,13 +119,14 @@ function updateFundSymbol(id, newSymbol) {
 }
 
 function updateFundName(id, newName) {
-  const fund = db.funds.find(f => f.id === id);
+  const fund = (db.funds || []).find(f => f.id === id);
   if (fund && newName.trim() !== '') { fund.name = newName.trim(); saveDB(); }
 }
 
 function addSubCategory(fundId) {
-  const fund = db.funds.find(f => f.id === fundId);
+  const fund = (db.funds || []).find(f => f.id === fundId);
   if (!fund) return;
+  if (!fund.subCategories) fund.subCategories = [];
   if (fund.subCategories.length >= 4) return alert('จำกัดสูงสุด 4 ประเภทต่อกองทุนผสมครับ');
   
   const name = prompt('กรอกชื่อประเภทย่อย (เช่น ทอง, หุ้นต่างประเทศ, เงินสด):');
@@ -142,8 +144,8 @@ function addSubCategory(fundId) {
 }
 
 function deleteSubCategory(fundId, subId) {
-  const fund = db.funds.find(f => f.id === fundId);
-  if (fund) {
+  const fund = (db.funds || []).find(f => f.id === fundId);
+  if (fund && fund.subCategories) {
     fund.subCategories = fund.subCategories.filter(s => s.id !== subId);
     saveDB();
     renderSetupTab();
@@ -152,9 +154,13 @@ function deleteSubCategory(fundId, subId) {
 
 function deleteFund(id) {
   if (confirm('หากลบกองทุนนี้ ประวัติย้อนหลังจะถูกลบด้วย ยืนยันหรือไม่?')) {
-    db.funds = db.funds.filter(f => f.id !== id);
-    Object.keys(db.records).forEach(month => { if (db.records[month][id] !== undefined) delete db.records[month][id]; });
-    db.transactions = db.transactions.filter(t => t.fundId !== id); 
+    db.funds = (db.funds || []).filter(f => f.id !== id);
+    if (db.records) {
+      Object.keys(db.records).forEach(month => { if (db.records[month] && db.records[month][id] !== undefined) delete db.records[month][id]; });
+    }
+    if (db.transactions) {
+      db.transactions = db.transactions.filter(t => t.fundId !== id); 
+    }
     saveDB(); renderSetupTab();
   }
 }
@@ -184,11 +190,12 @@ function changeEntryMonth() {
 }
 
 function getDisplayDataForMonth(month) {
+  if (!db.records) db.records = {};
   if (db.records[month]) { renderUsingCarryForward = false; return db.records[month]; }
   const prevMonths = Object.keys(db.records).filter(m => m < month).sort();
   if (prevMonths.length > 0) {
     renderUsingCarryForward = true;
-    return db.records[prevMonths[prevMonths.length - 1]];
+    return db.records[prevMonths[prevMonths.length - 1]] || {};
   }
   return {};
 }
@@ -214,7 +221,7 @@ function autoCalcMonthlyFund(fundId, changedField) {
     }
   }
 
-  const fund = db.funds.find(f => f.id === fundId);
+  const fund = (db.funds || []).find(f => f.id === fundId);
   if (fund && units > 0) {
     fund.units = units;
     saveDB();
@@ -233,7 +240,7 @@ function renderEntryForm() {
   if(!container) return;
   container.innerHTML = '';
   
-  if (db.funds.length === 0) {
+  if (!db.funds || db.funds.length === 0) {
     if(warning) warning.classList.add('hidden');
     if(summaryPanel) summaryPanel.classList.add('hidden');
     container.innerHTML = `<div class="text-center py-10 text-slate-400 bg-white rounded-2xl border border-slate-200">กรุณาเพิ่มชื่อบัญชี/กองทุนในแท็บตั้งค่าก่อน</div>`;
@@ -243,7 +250,7 @@ function renderEntryForm() {
 
   const currentData = getDisplayDataForMonth(month);
   
-  const sortedMonths = Object.keys(db.records).filter(m => m < month).sort();
+  const sortedMonths = Object.keys(db.records || {}).filter(m => m < month).sort();
   let prevMonthData = {};
   if (sortedMonths.length > 0) {
     prevMonthData = db.records[sortedMonths[sortedMonths.length - 1]] || {};
@@ -254,8 +261,8 @@ function renderEntryForm() {
     else warning.classList.add('hidden');
   }
 
-  Object.values(db.categories).forEach(cat => {
-    const catFunds = db.funds.filter(f => f.catId === cat.id);
+  Object.values(db.categories || {}).forEach(cat => {
+    const catFunds = (db.funds || []).filter(f => f.catId === cat.id);
     if (catFunds.length === 0) return;
     let html = `
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
@@ -339,7 +346,7 @@ function renderEntryForm() {
 function updateEntryTotals() {
   let total = 0;
   const catTotals = { high: 0, med: 0, low: 0, ins: 0 };
-  db.funds.forEach(f => {
+  (db.funds || []).forEach(f => {
     const el = document.getElementById(`entry-${f.id}`);
     const val = el ? parseLocalNumber(el.value) : 0;
     if (catTotals[f.catId] !== undefined) catTotals[f.catId] += val;
@@ -354,14 +361,14 @@ function updateEntryTotals() {
   });
 
   const currentMonth = activeEntryMonth || getCurrentMonth();
-  const sortedMonths = Object.keys(db.records).filter(m => m < currentMonth).sort();
+  const sortedMonths = Object.keys(db.records || {}).filter(m => m < currentMonth).sort();
   let prevTotal = 0;
   let prevData = {};
   
   if (sortedMonths.length > 0) {
     const prevMonth = sortedMonths[sortedMonths.length - 1];
     prevData = db.records[prevMonth] || {};
-    db.funds.forEach(f => {
+    (db.funds || []).forEach(f => {
       prevTotal += (prevData[f.id] || 0);
     });
   }
@@ -380,7 +387,7 @@ function updateEntryTotals() {
     }
   }
 
-  db.funds.forEach(f => {
+  (db.funds || []).forEach(f => {
     const el = document.getElementById(`entry-${f.id}`);
     const currentAmount = el ? parseLocalNumber(el.value) : 0;
     const prevAmount = prevData[f.id] !== undefined ? prevData[f.id] : 0;
@@ -422,7 +429,8 @@ function scheduleAutoSave(fundId, valStr) {
 }
 
 function saveEntryMonth(month, { showToastFlag = true, silent = false } = {}) {
-  if (!month || db.funds.length === 0) return false;
+  if (!month || !db.funds || db.funds.length === 0) return false;
+  if (!db.records) db.records = {};
   if (!db.records[month]) db.records[month] = {};
   
   db.funds.forEach(f => {
@@ -467,12 +475,12 @@ function saveMonthlyData(ev) {
 
 // ================= COMPARE MODULE =================
 function getAvailableYears() {
-  const years = new Set(Object.keys(db.records).map(m => m.split('-')[0]));
+  const years = new Set(Object.keys(db.records || {}).map(m => m.split('-')[0]));
   return Array.from(years).sort().reverse();
 }
 
 function getLatestMonthDataForYear(year) {
-  const monthsInYear = Object.keys(db.records).filter(m => m.startsWith(year)).sort();
+  const monthsInYear = Object.keys(db.records || {}).filter(m => m.startsWith(year)).sort();
   if (monthsInYear.length === 0) return null;
   const latestMonth = monthsInYear[monthsInYear.length - 1];
   return { month: latestMonth, data: db.records[latestMonth] };
@@ -480,7 +488,7 @@ function getLatestMonthDataForYear(year) {
 
 function calculateCategoryTotal(dataObj, catId) {
   if (!dataObj) return 0;
-  const fundsInCat = db.funds.filter(f => f.catId === catId).map(f => f.id);
+  const fundsInCat = (db.funds || []).filter(f => f.catId === catId).map(f => f.id);
   return fundsInCat.reduce((sum, fId) => sum + (dataObj[fId] || 0), 0);
 }
 
@@ -504,7 +512,7 @@ function initCompareTab() {
   }
   renderCompareDashboard();
 
-  const allMonths = Object.keys(db.records).sort();
+  const allMonths = Object.keys(db.records || {}).sort();
   const m1Input = document.getElementById('mcomp-month1');
   const m2Input = document.getElementById('mcomp-month2');
   
@@ -536,7 +544,7 @@ function renderCompareDashboard() {
   let total1 = 0, total2 = 0;
   const catTotals = { high: [0, 0], med: [0, 0], low: [0, 0], ins: [0, 0] };
 
-  Object.keys(db.categories).forEach(catId => {
+  Object.keys(db.categories || {}).forEach(catId => {
     const val1 = calculateCategoryTotal(data1 ? data1.data : null, catId);
     const val2 = calculateCategoryTotal(data2 ? data2.data : null, catId);
     catTotals[catId] = [val1, val2];
@@ -553,7 +561,7 @@ function renderCompareDashboard() {
   const summaryTextEl = document.getElementById('comp-summary-text');
   if(summaryTextEl) summaryTextEl.innerText = `เทียบข้อมูล ณ ${monthText2} กับ ${monthText1}`;
 
-  Object.keys(db.categories).forEach(catId => {
+  Object.keys(db.categories || {}).forEach(catId => {
     const catTextEl = document.getElementById(`comp-cat-${catId}`);
     if(catTextEl) catTextEl.innerText = '฿' + formatNumber(catTotals[catId][1]);
     
@@ -576,13 +584,13 @@ function renderMonthCompareDashboard() {
   const m2 = m2El.value;
   if (!m1 || !m2) return;
   
-  const data1 = db.records[m1] ? { month: m1, data: db.records[m1] } : null;
-  const data2 = db.records[m2] ? { month: m2, data: db.records[m2] } : null;
+  const data1 = (db.records && db.records[m1]) ? { month: m1, data: db.records[m1] } : null;
+  const data2 = (db.records && db.records[m2]) ? { month: m2, data: db.records[m2] } : null;
 
   let total1 = 0, total2 = 0;
   const catTotals = { high: [0, 0], med: [0, 0], low: [0, 0], ins: [0, 0] };
 
-  Object.keys(db.categories).forEach(catId => {
+  Object.keys(db.categories || {}).forEach(catId => {
     const val1 = calculateCategoryTotal(data1 ? data1.data : null, catId);
     const val2 = calculateCategoryTotal(data2 ? data2.data : null, catId);
     catTotals[catId] = [val1, val2];
@@ -599,7 +607,7 @@ function renderMonthCompareDashboard() {
   const summaryTextEl = document.getElementById('mcomp-summary-text');
   if(summaryTextEl) summaryTextEl.innerText = `เทียบข้อมูล ณ ${monthText2} กับ ${monthText1}`;
 
-  Object.keys(db.categories).forEach(catId => {
+  Object.keys(db.categories || {}).forEach(catId => {
     const catTextEl = document.getElementById(`mcomp-cat-${catId}`);
     if(catTextEl) catTextEl.innerText = '฿' + formatNumber(catTotals[catId][1]);
     
@@ -635,7 +643,7 @@ function updateDiffElement(diffId, pctId, current, base, styleForDarkBg = false)
 // ================= CHARTS MODULE =================
 function getAllUniqueSubCategories() {
   let subs = new Set();
-  db.funds.forEach(f => {
+  (db.funds || []).forEach(f => {
     if(f.subCategories && f.subCategories.length > 0) {
       f.subCategories.forEach(s => subs.add(s.name.trim()));
     }
@@ -658,18 +666,19 @@ function isAutoCostSavingsFund(fund) {
 }
 
 function calculateCumulativeCost(fundId, targetMonth) {
-  const fund = db.funds.find(f => f.id === fundId);
+  const fund = (db.funds || []).find(f => f.id === fundId);
   
   if (fund && isAutoCostSavingsFund(fund)) {
-    return db.records[targetMonth] ? (db.records[targetMonth][fundId] || 0) : 0;
+    return (db.records && db.records[targetMonth]) ? (db.records[targetMonth][fundId] || 0) : 0;
   }
 
   let cumulativeCost = 0;
-  db.transactions.forEach(t => {
+  (db.transactions || []).forEach(t => {
+    if (!t.date) return;
     const txMonth = t.date.substring(0, 7); 
     if (t.fundId === fundId && txMonth <= targetMonth) {
-      if (t.type === 'BUY') cumulativeCost += t.amount;
-      if (t.type === 'SELL') cumulativeCost -= t.amount;
+      if (t.type === 'BUY') cumulativeCost += (t.amount || 0);
+      if (t.type === 'SELL') cumulativeCost -= (t.amount || 0);
     }
   });
   return Math.max(0, cumulativeCost);
@@ -693,11 +702,11 @@ function initChartsTab() {
     });
   }
 
-  db.funds.forEach(f => {
+  (db.funds || []).forEach(f => {
     select.innerHTML += `<option value="${f.id}">กองทุน: ${f.name} (${f.symbol || ''})</option>`;
   });
 
-  const months = Object.keys(db.records).sort();
+  const months = Object.keys(db.records || {}).sort();
   const startEl = document.getElementById('chart-start');
   const endEl = document.getElementById('chart-end');
   if(startEl && endEl) {
@@ -714,19 +723,19 @@ function initChartsTab() {
 }
 
 function getMarketValueByFilter(filterVal, monthStr) {
+  if (!db.records || !db.records[monthStr]) return 0;
   const record = db.records[monthStr];
-  if (!record) return 0;
   
   if (filterVal === 'ALL_PORTFOLIO') {
-    return db.funds.reduce((sum, f) => sum + (record[f.id] || 0), 0);
+    return (db.funds || []).reduce((sum, f) => sum + (record[f.id] || 0), 0);
   } else if (filterVal.startsWith('CAT_')) {
     const catId = filterVal.replace('CAT_', '');
-    const targetFunds = db.funds.filter(f => f.catId === catId);
+    const targetFunds = (db.funds || []).filter(f => f.catId === catId);
     return targetFunds.reduce((sum, f) => sum + (record[f.id] || 0), 0);
   } else if (filterVal.startsWith('SUBCAT_')) {
     const subName = filterVal.replace('SUBCAT_', '');
     let totalSubVal = 0;
-    db.funds.forEach(f => {
+    (db.funds || []).forEach(f => {
       const fundVal = record[f.id] || 0;
       if (f.subCategories && f.subCategories.length > 0) {
         const subMatch = f.subCategories.find(s => s.name.trim() === subName);
@@ -743,15 +752,15 @@ function getMarketValueByFilter(filterVal, monthStr) {
 
 function getCostBasisByFilter(filterVal, monthStr) {
   if (filterVal === 'ALL_PORTFOLIO') {
-    return db.funds.reduce((sum, f) => sum + calculateCumulativeCost(f.id, monthStr), 0);
+    return (db.funds || []).reduce((sum, f) => sum + calculateCumulativeCost(f.id, monthStr), 0);
   } else if (filterVal.startsWith('CAT_')) {
     const catId = filterVal.replace('CAT_', '');
-    const targetFunds = db.funds.filter(f => f.catId === catId);
+    const targetFunds = (db.funds || []).filter(f => f.catId === catId);
     return targetFunds.reduce((sum, f) => sum + calculateCumulativeCost(f.id, monthStr), 0);
   } else if (filterVal.startsWith('SUBCAT_')) {
     const subName = filterVal.replace('SUBCAT_', '');
     let totalSubCost = 0;
-    db.funds.forEach(f => {
+    (db.funds || []).forEach(f => {
       const fundCost = calculateCumulativeCost(f.id, monthStr);
       if (f.subCategories && f.subCategories.length > 0) {
         const subMatch = f.subCategories.find(s => s.name.trim() === subName);
@@ -767,28 +776,25 @@ function getCostBasisByFilter(filterVal, monthStr) {
 }
 
 function monthToTotalMonths(monthStr) {
+  if (!monthStr || !monthStr.includes('-')) return 0;
   const [year, month] = monthStr.split('-').map(Number);
-  return year * 12 + month;
+  return (year || 0) * 12 + (month || 0);
 }
 
-// ฟังก์ชันคำนวณผลตอบแทนย้อนหลัง (สูตร: กำไรปัจจุบัน - กำไรในอดีต / ต้นทุนเฉลี่ยของช่วงเวลา)
+// ฟังก์ชันคำนวณผลตอบแทนจากจุดบนเส้นกราฟมูลค่าตลาดโดยตรง (Point-to-Point Growth Rate & CAGR)
 function calculatePeriodReturns(filterId, endMonthStr) {
-  const allMonths = Object.keys(db.records).sort();
+  const allMonths = Object.keys(db.records || {}).sort();
   if (!allMonths.includes(endMonthStr)) return null;
 
   const [endYear, endMonth] = endMonthStr.split('-').map(Number);
   
-  // ปลายทาง (End)
-  const endMV = getMarketValueByFilter(filterId, endMonthStr);
-  const endCost = getCostBasisByFilter(filterId, endMonthStr);
-  const endProfit = endMV - endCost;
+  // มูลค่าปลายงวดจากเส้นกราฟ
+  const endMV = getMarketValueByFilter(filterId, endMonthStr) || 0;
 
-  if (endCost <= 0) return null;
+  // ป้องกันกรณีมูลค่าปลายงวดเป็น 0
+  if (endMV <= 0) return null;
 
-  const inceptionMonth = allMonths.find(m => {
-    return getMarketValueByFilter(filterId, m) > 0 || getCostBasisByFilter(filterId, m) > 0;
-  });
-
+  const inceptionMonth = allMonths.find(m => getMarketValueByFilter(filterId, m) > 0);
   if (!inceptionMonth) return null;
 
   const periods = [
@@ -801,50 +807,48 @@ function calculatePeriodReturns(filterId, endMonthStr) {
   const results = {};
 
   periods.forEach(p => {
-    const targetTotalMonths = (endYear * 12 + endMonth) - p.monthsBack;
+    const targetTotalMonths = ((endYear || 0) * 12 + (endMonth || 0)) - p.monthsBack;
     const targetYear = Math.floor((targetTotalMonths - 1) / 12);
     const targetM = targetTotalMonths - (targetYear * 12);
     const targetMonthStr = `${targetYear}-${String(targetM).padStart(2, '0')}`;
 
-    // ย้อนหลังเกินข้อมูลที่มี ให้แสดง N/A
+    // ถ้าย้อนหลังเกินช่วงข้อมูลที่มี ให้ส่งคืนค่า null (แสดง N/A)
     if (targetMonthStr < inceptionMonth) {
-      results[p.key] = { returnPct: null, matchedMonth: null, actualMonthsDiff: 0, isAnnualized: p.isAnnualized, label: p.name };
+      results[p.key] = { returnPct: null, matchedMonth: null, isAnnualized: p.isAnnualized, label: p.name };
       return;
     }
 
     let startMonthToUse = allMonths.filter(m => m <= targetMonthStr).pop() || inceptionMonth;
     
-    // ต้นทาง (Start)
-    const startMV = getMarketValueByFilter(filterId, startMonthToUse);
-    const startCost = getCostBasisByFilter(filterId, startMonthToUse);
-    const startProfit = startMV - startCost;
+    // มูลค่าต้นงวดจากเส้นกราฟ
+    const startMV = getMarketValueByFilter(filterId, startMonthToUse) || 0;
 
-    // 1. ผลกำไรที่ต่างกันในช่วงเวลา = กำไรปลายทาง - กำไรต้นทาง
-    const profitDiff = endProfit - startProfit;
-
-    // 2. ต้นทุนเฉลี่ยของช่วงเวลา = (ต้นทุนต้นทาง + ต้นทุนปลายทาง) / 2
-    const avgCost = (startCost + endCost) / 2;
-
-    if (avgCost <= 0) {
-      results[p.key] = { returnPct: null, matchedMonth: null, actualMonthsDiff: 0, isAnnualized: p.isAnnualized, label: p.name };
+    // 🛑 ป้องกันการหารด้วยศูนย์ หากจุดเริ่มงวดบนกราฟเป็น 0
+    if (startMV <= 0) {
+      results[p.key] = { returnPct: null, matchedMonth: startMonthToUse, isAnnualized: p.isAnnualized, label: p.name };
       return;
     }
 
-    // 3. ผลตอบแทน = (กำไรช่วงเวลา / ต้นทุนเฉลี่ย) * 100
-    let returnPct = (profitDiff / avgCost) * 100;
-
+    let returnPct = 0;
     const actualMonthsDiff = monthToTotalMonths(endMonthStr) - monthToTotalMonths(startMonthToUse);
+    const yearsDiff = actualMonthsDiff / 12;
 
-    // 4. หากเป็นรายการย้อนหลังเกิน 1 ปี (และเซตให้ annualized) ให้หารด้วยจำนวนปี
-    if (p.isAnnualized && actualMonthsDiff > 12) {
-      const yearsDiff = actualMonthsDiff / 12;
-      returnPct = returnPct / yearsDiff;
+    if (p.isAnnualized && yearsDiff > 1) {
+      // คำนวณแบบ CAGR (ผลตอบแทนทบต้นเฉลี่ยต่อปี)
+      returnPct = (Math.pow(endMV / startMV, 1 / yearsDiff) - 1) * 100;
+    } else {
+      // คำนวณแบบการเติบโตสุทธิทั่วไป
+      returnPct = ((endMV - startMV) / startMV) * 100;
+    }
+
+    // 🛑 ป้องกันค่า NaN / Infinity
+    if (isNaN(returnPct) || !isFinite(returnPct)) {
+      returnPct = null;
     }
 
     results[p.key] = {
       returnPct: returnPct,
       matchedMonth: startMonthToUse,
-      actualMonthsDiff: actualMonthsDiff,
       isAnnualized: p.isAnnualized,
       label: p.name
     };
@@ -869,7 +873,7 @@ function renderIndividualChart() {
   if(periodContainer) periodContainer.innerHTML = '';
   if (!filterId || !startM || !endM) return;
 
-  const allMonths = Object.keys(db.records).sort();
+  const allMonths = Object.keys(db.records || {}).sort();
   const filteredMonths = allMonths.filter(m => m >= startM && m <= endM);
   
   const labels = filteredMonths;
@@ -890,7 +894,13 @@ function renderIndividualChart() {
   const isPeriodPos = periodDiff >= 0;
 
   const latestProfit = latestMV - latestCost;
-  const latestProfitPct = latestCost > 0 ? (latestProfit / latestCost) * 100 : 0;
+  
+  // 🛑 ป้องกัน Zero-division สำหรับสรุปการ์ดรวม
+  let latestProfitPct = 0;
+  if (latestCost > 0) {
+    latestProfitPct = (latestProfit / latestCost) * 100;
+  }
+  if (isNaN(latestProfitPct) || !isFinite(latestProfitPct)) latestProfitPct = 0;
 
   if(summaryContainer) {
     summaryContainer.innerHTML = `
@@ -928,7 +938,7 @@ function renderIndividualChart() {
         let colorClass = 'text-slate-400';
         let noteText = 'ไม่มีข้อมูลในระยะเวลา';
 
-        if (item && item.returnPct !== null && !isNaN(item.returnPct)) {
+        if (item && item.returnPct !== null && !isNaN(item.returnPct) && isFinite(item.returnPct)) {
           const isPos = item.returnPct >= 0;
           valText = `${isPos ? '+' : ''}${item.returnPct.toFixed(2)}%`;
           colorClass = isPos ? 'text-emerald-600' : 'text-rose-600';
@@ -937,7 +947,7 @@ function renderIndividualChart() {
 
         periodContainer.innerHTML += `
           <div class="bg-slate-50/80 p-3 rounded-xl border border-slate-200 shadow-sm text-center">
-            <p class="text-[11px] font-bold text-slate-600 mb-0.5">${item.label} ${item.isAnnualized ? '<span class="text-[9px] text-blue-600 font-normal">(ต่อปี)</span>' : ''}</p>
+            <p class="text-[11px] font-bold text-slate-600 mb-0.5">${item ? item.label : ''} ${item && item.isAnnualized ? '<span class="text-[9px] text-blue-600 font-normal">(ต่อปี)</span>' : ''}</p>
             <h4 class="text-base font-black ${colorClass}">${valText}</h4>
             <p class="text-[9px] text-slate-400 mt-0.5 truncate">${noteText}</p>
           </div>
@@ -1004,7 +1014,7 @@ function renderAnnualPerformanceTable(filterId) {
 
   for (let i = 0; i < 5; i++) {
     const year = currentYear - i;
-    const monthsInYear = Object.keys(db.records).filter(m => m.startsWith(year.toString())).sort();
+    const monthsInYear = Object.keys(db.records || {}).filter(m => m.startsWith(year.toString())).sort();
     
     if (monthsInYear.length === 0) {
       tbody.innerHTML += `
@@ -1016,10 +1026,16 @@ function renderAnnualPerformanceTable(filterId) {
     }
 
     const targetMonth = monthsInYear[monthsInYear.length - 1]; 
-    const mv = getMarketValueByFilter(filterId, targetMonth);
-    const cost = getCostBasisByFilter(filterId, targetMonth);
+    const mv = getMarketValueByFilter(filterId, targetMonth) || 0;
+    const cost = getCostBasisByFilter(filterId, targetMonth) || 0;
     const profit = mv - cost;
-    const profitPct = cost > 0 ? (profit / cost) * 100 : 0;
+    
+    // 🛑 ป้องกัน Zero-Division ในตารางรายปี
+    let profitPct = 0;
+    if (cost > 0) {
+      profitPct = (profit / cost) * 100;
+    }
+    if (isNaN(profitPct) || !isFinite(profitPct)) profitPct = 0;
 
     const isPos = profit >= 0;
     const colorClass = isPos ? 'text-emerald-600' : 'text-rose-600';
@@ -1037,7 +1053,7 @@ function renderAnnualPerformanceTable(filterId) {
 
 // ================= ALLOCATION MODULE =================
 function initAllocationTab() {
-  const sortedMonths = Object.keys(db.records).sort();
+  const sortedMonths = Object.keys(db.records || {}).sort();
   const monthSelect = document.getElementById('alloc-month-select');
   if(monthSelect) {
     monthSelect.innerHTML = '';
@@ -1052,7 +1068,7 @@ function initAllocationTab() {
   }
   
   let uniqueSubs = getAllUniqueSubCategories();
-  if(db.funds.some(f => !f.subCategories || f.subCategories.length === 0)) {
+  if((db.funds || []).some(f => !f.subCategories || f.subCategories.length === 0)) {
     uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
   }
 
@@ -1102,7 +1118,7 @@ function onSubCatFilterChange(cb) {
 
 function toggleSelectAllSubCats(isSelectAll) {
   let uniqueSubs = getAllUniqueSubCategories();
-  if(db.funds.some(f => !f.subCategories || f.subCategories.length === 0)) uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
+  if((db.funds || []).some(f => !f.subCategories || f.subCategories.length === 0)) uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
   
   selectedSubCatsForCompare = isSelectAll ? [...uniqueSubs] : [];
   renderSubCatCheckboxes(uniqueSubs);
@@ -1121,7 +1137,7 @@ function renderAllocationTargetInputs() {
   }
 
   selectedSubCatsForCompare.forEach((subName, index) => {
-    let savedWeight = db.allocationSettings[subName];
+    let savedWeight = (db.allocationSettings || {})[subName];
     if (savedWeight === undefined) {
       savedWeight = index === 0 ? 100 : 0; 
     }
@@ -1140,12 +1156,13 @@ function addNewSubCatTargetPrompt() {
   const name = prompt('ป้อนชื่อประเภทย่อยใหม่ที่ต้องการกำหนดเป้าหมายล่วงหน้า:');
   if(!name || name.trim() === '') return;
   const subName = name.trim();
+  if (!db.allocationSettings) db.allocationSettings = {};
   db.allocationSettings[subName] = 0;
   if(!selectedSubCatsForCompare.includes(subName)) selectedSubCatsForCompare.push(subName);
   saveDB();
   
   let uniqueSubs = getAllUniqueSubCategories();
-  if(db.funds.some(f => !f.subCategories || f.subCategories.length === 0)) uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
+  if((db.funds || []).some(f => !f.subCategories || f.subCategories.length === 0)) uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
   if(!uniqueSubs.includes(subName)) uniqueSubs.push(subName);
 
   renderSubCatCheckboxes(uniqueSubs);
@@ -1166,6 +1183,7 @@ function calculateAllocation(shouldSaveState = false) {
   });
 
   if (shouldSaveState) {
+    if (!db.allocationSettings) db.allocationSettings = {};
     inputs.forEach(input => {
       const subName = input.getAttribute('data-subname');
       db.allocationSettings[subName] = parseFloat(input.value) || 0;
@@ -1193,8 +1211,8 @@ function calculateAllocation(shouldSaveState = false) {
   let totalWealthInGroup = 0;
   let currentSubTotals = {};
 
-  if (db.records[targetMonth]) {
-    db.funds.forEach(f => {
+  if (db.records && db.records[targetMonth]) {
+    (db.funds || []).forEach(f => {
       const fundVal = db.records[targetMonth][f.id] || 0;
 
       if(f.subCategories && f.subCategories.length > 0) {
@@ -1318,7 +1336,7 @@ function calculateAllocation(shouldSaveState = false) {
     });
   }
 
-  const sortedMonths = Object.keys(db.records).sort();
+  const sortedMonths = Object.keys(db.records || {}).sort();
   renderPortfolioTrendChart(sortedMonths);
 }
 
@@ -1334,8 +1352,8 @@ function renderPortfolioTrendChart(monthsArray) {
     let subDataTrend = [];
     monthsArray.forEach(m => {
       let monthVal = 0;
-      db.funds.forEach(f => {
-        const val = db.records[m] ? db.records[m][f.id] || 0 : 0;
+      (db.funds || []).forEach(f => {
+        const val = (db.records && db.records[m]) ? db.records[m][f.id] || 0 : 0;
         if (f.subCategories && f.subCategories.length > 0) {
           const match = f.subCategories.find(s => s.name.trim() === subName);
           if(match) monthVal += val * (match.weight / 100);
@@ -1375,14 +1393,14 @@ function renderPortfolioTrendChart(monthsArray) {
 
 // ================= RETIREMENT SIMULATOR MODULE =================
 function calculateRetirement(shouldSaveState = false) {
-  const sortedMonths = Object.keys(db.records).sort();
+  const sortedMonths = Object.keys(db.records || {}).sort();
   let latestWealth = 0;
   let latestMonthText = 'ไม่มีข้อมูล';
   
   if (sortedMonths.length > 0) {
     const latestMonth = sortedMonths[sortedMonths.length - 1];
     latestMonthText = latestMonth;
-    db.funds.forEach(f => { latestWealth += (db.records[latestMonth][f.id] || 0); });
+    (db.funds || []).forEach(f => { latestWealth += ((db.records[latestMonth] && db.records[latestMonth][f.id]) || 0); });
   }
   
   const currentAgeEl = document.getElementById('sim-current-age');
@@ -1411,7 +1429,7 @@ function calculateRetirement(shouldSaveState = false) {
   
   const yearsToRetire = Math.max(0, retireAge - currentAge);
   const inflationFactor = Math.pow(1 + (inflationRate / 100), yearsToRetire);
-  const realValueAtRetire = latestWealth / inflationFactor;
+  const realValueAtRetire = latestWealth / (inflationFactor || 1);
 
   const futureWealthText = document.getElementById('sim-future-wealth');
   const inflationText = document.getElementById('sim-inflation-text');
@@ -1484,7 +1502,7 @@ function calculateRetirement(shouldSaveState = false) {
       updateSimProgressBar(100, "คุณเข้าสู่วัยเกษียณตามเกณฑ์แล้ว");
     } else {
       resYearsText.innerText = `${yearsCount} ปี ${monthsCount} เดือน`;
-      const progressPct = Math.min(100, (latestWealth / targetRetireWealthNeeded) * 100);
+      const progressPct = targetRetireWealthNeeded > 0 ? Math.min(100, (latestWealth / targetRetireWealthNeeded) * 100) : 0;
       let statusMsg = "";
       if (progressPct < 25) statusMsg = "⚠️ เงินออมปัจจุบันยังน้อย แนะนำวางแผนออมเพิ่มด่วนครับ";
       else if (progressPct < 50) statusMsg = "ฐานเงินเริ่มตั้งตัวได้ดี แนะนำจัดพอร์ตให้เติบโตเพื่อสู้เงินเฟ้อ";
@@ -1528,7 +1546,7 @@ function initTransactionsTab() {
   const select = document.getElementById('tx-fund');
   if(!select) return;
   select.innerHTML = '';
-  if (db.funds.length === 0) {
+  if (!db.funds || db.funds.length === 0) {
     select.innerHTML = '<option value="">-- ยังไม่มีรายชื่อกองทุน --</option>';
   } else {
     db.funds.forEach(f => { select.innerHTML += `<option value="${f.id}">${f.name} (${f.symbol || ''})</option>`; });
@@ -1537,7 +1555,7 @@ function initTransactionsTab() {
   const filterSelect = document.getElementById('tx-filter-select');
   if(!filterSelect) return;
   filterSelect.innerHTML = '<option value="ALL">-- แสดงทั้งหมด --</option>';
-  db.funds.forEach(f => { filterSelect.innerHTML += `<option value="${f.id}">${f.name} (${f.symbol || ''})</option>`; });
+  (db.funds || []).forEach(f => { filterSelect.innerHTML += `<option value="${f.id}">${f.name} (${f.symbol || ''})</option>`; });
 
   const today = new Date().toISOString().split('T')[0];
   const dateInput = document.getElementById('tx-date');
@@ -1563,6 +1581,7 @@ function addTransaction() {
   if (!fundIdVal) return alert('กรุณาเลือกกองทุน/บัญชี');
   if (isNaN(amountVal) || amountVal <= 0) return alert('กรุณาระบุจำนวนเงินที่มากกว่า 0 บาท');
 
+  if (!db.transactions) db.transactions = [];
   db.transactions.push({ id: 'tx_' + generateId(), date: dateVal, fundId: fundIdVal, type: typeVal, amount: amountVal });
   saveDB();
   amountEl.value = '';
@@ -1572,7 +1591,7 @@ function addTransaction() {
 
 function deleteTransaction(txId) {
   if (confirm('ยืนยันที่จะลบรายการบันทึกประวัตินี้หรือไม่?')) {
-    db.transactions = db.transactions.filter(t => t.id !== txId);
+    db.transactions = (db.transactions || []).filter(t => t.id !== txId);
     saveDB();
     renderTransactionsTable();
     showToast('ลบรายการสำเร็จแล้ว');
@@ -1586,8 +1605,8 @@ function renderTransactionsTable() {
   const filterValue = (filterSelect ? filterSelect.value : 'ALL') || 'ALL';
   tbody.innerHTML = '';
 
-  let filteredTx = db.transactions;
-  if (filterValue !== 'ALL') { filteredTx = db.transactions.filter(t => t.fundId === filterValue); }
+  let filteredTx = db.transactions || [];
+  if (filterValue !== 'ALL') { filteredTx = (db.transactions || []).filter(t => t.fundId === filterValue); }
   const sortedTx = [...filteredTx].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   if (sortedTx.length === 0) {
@@ -1596,7 +1615,7 @@ function renderTransactionsTable() {
   }
 
   sortedTx.forEach(t => {
-    const fund = db.funds.find(f => f.id === t.fundId);
+    const fund = (db.funds || []).find(f => f.id === t.fundId);
     const fundName = fund ? `${fund.name} (${fund.symbol || ''})` : 'ไม่พบข้อมูลกองทุน';
     let typeBadge = '';
     if (t.type === 'BUY') typeBadge = '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded font-bold">ซื้อ</span>';
