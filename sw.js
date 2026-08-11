@@ -1,8 +1,3 @@
-// ================= SERVICE WORKER (sw.js) =================
-// 🛑 BUG เดิม: ใช้เวอร์ชัน v3.7.3 ทำให้เบราว์เซอร์จำโค้ดที่มี Bug จาก Cache เดิม
-// const CACHE_NAME = 'wealth-tracker-v3.7.3';
-
-// ✅ FIX: เปลี่ยนเลขเวอร์ชันเพื่อบังคับล้าง Cache เก่าทิ้ง และเก็บบันทึกไฟล์ที่แก้ไขใหม่ลง Cache
 const CACHE_NAME = 'wealth-tracker-v3.8.0';
 
 // รายการไฟล์ทั้งหมดที่ต้องการให้ Service Worker ทำการ Caching ไว้สำหรับ Offline Mode
@@ -27,9 +22,9 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Caching updated static assets:', CACHE_NAME);
+      console.log('[Service Worker] Caching all static assets');
       return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting()) // บังคับให้ Service Worker ใหม่เข้ามาทำงานทันที
+    }).then(() => self.skipWaiting())
   );
 });
 
@@ -40,12 +35,12 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
-            console.log('[Service Worker] Deleting old stale cache:', cache);
-            return caches.delete(cache); // ✅ ล้าง Cache เก่าทิ้งอัตโนมัติที่จุดนี้
+            console.log('[Service Worker] Deleting old cache:', cache);
+            return caches.delete(cache);
           }
         })
       );
-    }).then(() => self.clients.claim()) // ยึดการควบคุม Client ทุกหน้าต่างทันที
+    }).then(() => self.clients.claim())
   );
 });
 
