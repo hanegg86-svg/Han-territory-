@@ -45,7 +45,6 @@ function renderSetupTab() {
     if (catFunds.length === 0) html += `<p class="text-xs text-slate-400">ยังไม่มีข้อมูลในหมวดนี้</p>`;
     
     catFunds.forEach(f => {
-      // ✅ FIX: ป้องกัน XSS ด้วย escapeHtml()
       const safeName = escapeHtml(f.name || '');
       const safeSymbol = escapeHtml(f.symbol || '');
 
@@ -1479,6 +1478,68 @@ function calculateRetirement(shouldSaveState = false) {
       monthlySavingText.innerText = '฿' + formatNumber(monthlySavingRequired) + ' / เดือน';
       savingDescText.innerText = `ออมสม่ำเสมอเป็นเวลาอีก ${totalMonthsToRetire} เดือนต่อจากนี้`;
       monthlySavingText.className = "text-2xl font-black text-blue-600";
+    }
+  }
+
+  // คำนวณยอดเงินสะสมที่เพิ่มขึ้นได้จริงในเดือนล่าสุด เทียบกับเดือนก่อนหน้า
+  let actualMonthlyContribution = 0;
+  if (sortedMonths.length >= 2) {
+    const latestM = sortedMonths[sortedMonths.length - 1];
+    const prevM = sortedMonths[sortedMonths.length - 2];
+    
+    let latestTotal = 0;
+    let prevTotal = 0;
+    
+    (db.funds || []).forEach(f => {
+      latestTotal += (db.records[latestM] && db.records[latestM][f.id]) || 0;
+      prevTotal += (db.records[prevM] && db.records[prevM][f.id]) || 0;
+    });
+    
+    actualMonthlyContribution = latestTotal - prevTotal;
+  } else if (sortedMonths.length === 1) {
+    const latestM = sortedMonths[0];
+    (db.funds || []).forEach(f => {
+      actualMonthlyContribution += (db.records[latestM] && db.records[latestM][f.id]) || 0;
+    });
+  }
+
+  // อัปเดต Element เปรียบเทียบเป้าหมาย VS ยอดสะสมจริง
+  const recentMonthLabel = document.getElementById('sim-recent-month-label');
+  const targetMonthlyVal = document.getElementById('sim-target-monthly-val');
+  const actualMonthlyVal = document.getElementById('sim-actual-monthly-val');
+  const compareStatusBox = document.getElementById('sim-compare-status-box');
+
+  if (recentMonthLabel && sortedMonths.length > 0) {
+    recentMonthLabel.innerText = `ข้อมูลล่าสุด: ${sortedMonths[sortedMonths.length - 1]}`;
+  }
+
+  if (targetMonthlyVal) {
+    targetMonthlyVal.innerText = '฿' + formatNumber(monthlySavingRequired);
+  }
+
+  if (actualMonthlyVal) {
+    const isPos = actualMonthlyContribution >= 0;
+    actualMonthlyVal.innerText = (isPos ? '฿' : '-฿') + formatNumber(Math.abs(actualMonthlyContribution));
+    actualMonthlyVal.className = `text-lg font-black ${isPos ? 'text-emerald-600' : 'text-rose-600'}`;
+  }
+
+  if (compareStatusBox) {
+    const diffFromTarget = actualMonthlyContribution - monthlySavingRequired;
+    if (monthlySavingRequired <= 0) {
+      compareStatusBox.className = "mt-3 p-2.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800";
+      compareStatusBox.innerHTML = `<span><i class="fa-solid fa-circle-check mr-1.5"></i> คุณออมเงินถึงเป้าหมายเกษียณเรียบร้อยแล้ว</span>`;
+    } else if (diffFromTarget >= 0) {
+      compareStatusBox.className = "mt-3 p-2.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800";
+      compareStatusBox.innerHTML = `
+        <span><i class="fa-solid fa-circle-check mr-1.5"></i> เดือนล่าสุดออมได้เกินเป้าหมาย</span>
+        <span class="font-black">+฿${formatNumber(diffFromTarget)}</span>
+      `;
+    } else {
+      compareStatusBox.className = "mt-3 p-2.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-800";
+      compareStatusBox.innerHTML = `
+        <span><i class="fa-solid fa-triangle-exclamation mr-1.5"></i> ยังขาดอีกนิดจะถึงเป้าออมรายเดือน</span>
+        <span class="font-black">-฿${formatNumber(Math.abs(diffFromTarget))}</span>
+      `;
     }
   }
 
