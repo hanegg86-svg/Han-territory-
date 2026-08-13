@@ -398,6 +398,7 @@
             <div class="border-t border-slate-200 pt-3">
               <label class="block text-xs font-bold text-slate-600 mb-2">เลือกไลฟ์สไตล์หลังเกษียณ</label>
               <div class="grid grid-cols-1 gap-2">
+                <!-- 1. โหมดประหยัด -->
                 <label class="flex items-center p-2 bg-white border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
                   <input type="radio" name="sim-lifestyle" value="20000" onchange="calculateRetirement(true)" class="mr-2">
                   <div>
@@ -405,6 +406,8 @@
                     <p class="text-[10px] text-slate-400">~20,000 บ./เดือน</p>
                   </div>
                 </label>
+
+                <!-- 2. โหมดปานกลาง -->
                 <label class="flex items-center p-2 bg-white border border-blue-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
                   <input type="radio" name="sim-lifestyle" value="40000" checked onchange="calculateRetirement(true)" class="mr-2">
                   <div>
@@ -412,6 +415,17 @@
                     <p class="text-[10px] text-slate-400">~40,000 บ./เดือน</p>
                   </div>
                 </label>
+
+                <!-- 3. โหมดก็สบายตัวนิ๊ดหน่อย -->
+                <label class="flex items-center p-2 bg-white border border-emerald-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
+                  <input type="radio" name="sim-lifestyle" value="50000" onchange="calculateRetirement(true)" class="mr-2">
+                  <div>
+                    <p class="text-xs font-bold text-emerald-600">โหมดก็สบายตัวนิ๊ดหน่อย</p>
+                    <p class="text-[10px] text-slate-400">~50,000 บ./เดือน</p>
+                  </div>
+                </label>
+
+                <!-- 4. โหมดพรีเมียม -->
                 <label class="flex items-center p-2 bg-white border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
                   <input type="radio" name="sim-lifestyle" value="60000" onchange="calculateRetirement(true)" class="mr-2">
                   <div>
@@ -434,7 +448,7 @@
               <div class="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-5 text-white shadow-md">
                 <p class="text-blue-200 text-xs font-medium mb-1">มูลค่าจริง ณ วันเกษียณ (Real Value)</p>
                 <h3 id="sim-future-wealth" class="text-2xl font-bold">฿0.00</h3>
-                <p class="text-[10px] text-blue-200 mt-2" id="sim-inflation-text">หักเงินเฟ้อออก -% ในอีก - ปี</p>
+                <p class="text-[10px] text-blue-200 mt-2" id="sim-inflation-text">หักผลกระทบเงินเฟ้อสะสมในอีก - ปี</p>
               </div>
             </div>
 
