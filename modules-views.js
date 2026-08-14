@@ -1399,11 +1399,8 @@ function renderPortfolioTrendChart(monthsArray) {
 // ================= RETIREMENT SIMULATOR MODULE =================
 function calculateRetirement(shouldSaveState = false) {
   const sortedMonths = Object.keys(db.records || {}).sort();
-  
-  // ลำดับเดือน: ล่าสุด (latest), ก่อนหน้า (prev), ก่อนหน้าของก่อนหน้า (prevPrev)
   let latestMonth = sortedMonths.length > 0 ? sortedMonths[sortedMonths.length - 1] : null;
   let prevMonth = sortedMonths.length > 1 ? sortedMonths[sortedMonths.length - 2] : null;
-  let prevPrevMonth = sortedMonths.length > 2 ? sortedMonths[sortedMonths.length - 3] : null;
 
   const getMonthTotal = (m) => {
     if (!m || !db.records || !db.records[m]) return 0;
@@ -1412,12 +1409,29 @@ function calculateRetirement(shouldSaveState = false) {
 
   let latestWealth = getMonthTotal(latestMonth);
   let prevWealth = getMonthTotal(prevMonth);
-  let prevPrevWealth = getMonthTotal(prevPrevMonth);
 
-  // คำนวณยอดเงินที่สะสมเพิ่มได้จริง
+  // เงินที่สะสมเพิ่มได้จริงในเดือนล่าสุด
   let currentMonthSaved = latestWealth - prevWealth;
-  let prevMonthSaved = prevWealth - prevPrevWealth;
-  
+
+  // คำนวณยอดออมจริงเฉลี่ยของปีนี้
+  const currentYearStr = latestMonth ? latestMonth.split('-')[0] : new Date().getFullYear().toString();
+  const monthsInCurrentYear = sortedMonths.filter(m => m.startsWith(currentYearStr));
+
+  let totalSavingsYTD = 0;
+  let savingsCountYTD = 0;
+
+  monthsInCurrentYear.forEach(m => {
+    const index = sortedMonths.indexOf(m);
+    if (index > 0) {
+      const prevM = sortedMonths[index - 1];
+      const savedAmount = getMonthTotal(m) - getMonthTotal(prevM);
+      totalSavingsYTD += savedAmount;
+      savingsCountYTD++;
+    }
+  });
+
+  let avgSavingsYTD = savingsCountYTD > 0 ? (totalSavingsYTD / savingsCountYTD) : 0;
+
   const currentAgeEl = document.getElementById('sim-current-age');
   const retireAgeEl = document.getElementById('sim-retire-age');
   const lifeExpectancyEl = document.getElementById('sim-life-expectancy');
@@ -1464,7 +1478,6 @@ function calculateRetirement(shouldSaveState = false) {
   if(targetNeededText) targetNeededText.innerText = '฿' + formatNumber(targetRetireWealthNeeded);
   if(targetDescText) targetDescText.innerText = `สำหรับใช้ชีวิตครอบคลุม ${lifeExpectancyYears} ปีหลังเกษียณ`;
 
-  // เป้าหมายที่ต้องออมต่อเดือนเดิม (คำนวณตั้งแต่วันนี้จากฐานยอดยังไม่รวมเดือนล่าสุด)
   let totalMonthsToRetire = yearsToRetire * 12;
   let monthlySavingRequired = 0;
   if (totalMonthsToRetire > 0) {
@@ -1491,7 +1504,6 @@ function calculateRetirement(shouldSaveState = false) {
     }
   }
 
-  // คำนวณเป้าหมาย "หลังจากเดือนนี้ ต้องเก็บอีกเดือนละเท่าไหร่"
   let remainingMonths = Math.max(1, totalMonthsToRetire - 1);
   let nextMonthlySavingRequired = 0;
   if (totalMonthsToRetire > 0) {
@@ -1508,8 +1520,8 @@ function calculateRetirement(shouldSaveState = false) {
 
   const prevSavedEl = document.getElementById('sim-prev-month-saved');
   const prevLabelEl = document.getElementById('sim-prev-month-label');
-  if (prevSavedEl) prevSavedEl.innerText = '฿' + formatNumber(prevMonthSaved);
-  if (prevLabelEl && prevMonth) prevLabelEl.innerText = `ยอดออมจริง (${prevMonth})`;
+  if (prevSavedEl) prevSavedEl.innerText = '฿' + formatNumber(avgSavingsYTD);
+  if (prevLabelEl) prevLabelEl.innerText = `ยอดออมเฉลี่ย (ปี ${currentYearStr})`;
 
   const currSavedEl = document.getElementById('sim-curr-month-saved');
   const currLabelEl = document.getElementById('sim-curr-month-label');
