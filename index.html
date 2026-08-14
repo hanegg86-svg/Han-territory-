@@ -395,6 +395,7 @@
               <input type="number" step="0.1" id="sim-inflation" value="2.5" oninput="calculateRetirement(true)" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none focus:border-blue-500">
             </div>
 
+            <!-- เลือกไลฟ์สไตล์หลังเกษียณ (อัปเดต 4 โหมด) -->
             <div class="border-t border-slate-200 pt-3">
               <label class="block text-xs font-bold text-slate-600 mb-2">เลือกไลฟ์สไตล์หลังเกษียณ</label>
               <div class="grid grid-cols-1 gap-2">
@@ -412,11 +413,18 @@
                     <p class="text-[10px] text-slate-400">~40,000 บ./เดือน</p>
                   </div>
                 </label>
-                <label class="flex items-center p-2 bg-white border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
-                  <input type="radio" name="sim-lifestyle" value="80000" onchange="calculateRetirement(true)" class="mr-2">
+                <label class="flex items-center p-2 bg-white border border-emerald-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
+                  <input type="radio" name="sim-lifestyle" value="50000" onchange="calculateRetirement(true)" class="mr-2">
+                  <div>
+                    <p class="text-xs font-bold text-emerald-600">โหมดก็พอสบายนิ๊ดหน่อย</p>
+                    <p class="text-[10px] text-slate-400">~50,000 บ./เดือน</p>
+                  </div>
+                </label>
+                <label class="flex items-center p-2 bg-white border border-purple-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-all">
+                  <input type="radio" name="sim-lifestyle" value="70000" onchange="calculateRetirement(true)" class="mr-2">
                   <div>
                     <p class="text-xs font-bold text-purple-600">โหมดพรีเมียม</p>
-                    <p class="text-[10px] text-slate-400">~80,000 บ./เดือน</p>
+                    <p class="text-[10px] text-slate-400">~70,000 บ./เดือน</p>
                   </div>
                 </label>
               </div>
@@ -452,7 +460,7 @@
               </div>
             </div>
 
-            <!-- การ์ดเปรียบเทียบเป้าหมายออมเพิ่ม (Updated Section) -->
+            <!-- การ์ดเปรียบเทียบเป้าหมายออมเพิ่ม -->
             <div class="bg-white p-5 rounded-2xl border-2 border-slate-200 shadow-sm space-y-4">
               <div class="flex justify-between items-center border-b border-slate-100 pb-2">
                 <p class="text-xs font-bold text-slate-700 uppercase tracking-wide">

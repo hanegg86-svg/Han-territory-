@@ -1608,6 +1608,8 @@ function loadPlanningSettings() {
       if(document.getElementById('sim-retire-age')) document.getElementById('sim-retire-age').value = db.planningSettings.retireAge || 60;
       if(document.getElementById('sim-life-expectancy')) document.getElementById('sim-life-expectancy').value = db.planningSettings.lifeExpectancy || 20;
       if(document.getElementById('sim-inflation')) document.getElementById('sim-inflation').value = db.planningSettings.inflation || 2.5;
+      
+      // ดึงค่า lifestyle เพื่อเลือก Radio Button ให้อัตโนมัติ (รองรับ 20k, 40k, 50k, 70k)
       if (db.planningSettings.lifestyle) {
         const radio = document.querySelector(`input[name="sim-lifestyle"][value="${db.planningSettings.lifestyle}"]`);
         if (radio) radio.checked = true;
