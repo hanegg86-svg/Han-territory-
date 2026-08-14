@@ -1399,14 +1399,24 @@ function renderPortfolioTrendChart(monthsArray) {
 // ================= RETIREMENT SIMULATOR MODULE =================
 function calculateRetirement(shouldSaveState = false) {
   const sortedMonths = Object.keys(db.records || {}).sort();
-  let latestWealth = 0;
-  let latestMonthText = 'ไม่มีข้อมูล';
   
-  if (sortedMonths.length > 0) {
-    const latestMonth = sortedMonths[sortedMonths.length - 1];
-    latestMonthText = latestMonth;
-    (db.funds || []).forEach(f => { latestWealth += ((db.records[latestMonth] && db.records[latestMonth][f.id]) || 0); });
-  }
+  // ลำดับเดือน: ล่าสุด (latest), ก่อนหน้า (prev), ก่อนหน้าของก่อนหน้า (prevPrev)
+  let latestMonth = sortedMonths.length > 0 ? sortedMonths[sortedMonths.length - 1] : null;
+  let prevMonth = sortedMonths.length > 1 ? sortedMonths[sortedMonths.length - 2] : null;
+  let prevPrevMonth = sortedMonths.length > 2 ? sortedMonths[sortedMonths.length - 3] : null;
+
+  const getMonthTotal = (m) => {
+    if (!m || !db.records || !db.records[m]) return 0;
+    return (db.funds || []).reduce((sum, f) => sum + (db.records[m][f.id] || 0), 0);
+  };
+
+  let latestWealth = getMonthTotal(latestMonth);
+  let prevWealth = getMonthTotal(prevMonth);
+  let prevPrevWealth = getMonthTotal(prevPrevMonth);
+
+  // คำนวณยอดเงินที่สะสมเพิ่มได้จริง
+  let currentMonthSaved = latestWealth - prevWealth;
+  let prevMonthSaved = prevWealth - prevPrevWealth;
   
   const currentAgeEl = document.getElementById('sim-current-age');
   const retireAgeEl = document.getElementById('sim-retire-age');
@@ -1430,7 +1440,7 @@ function calculateRetirement(shouldSaveState = false) {
   const curWealthText = document.getElementById('sim-current-wealth');
   const asOfDateText = document.getElementById('sim-as-of-date');
   if(curWealthText) curWealthText.innerText = '฿' + formatNumber(latestWealth);
-  if(asOfDateText) asOfDateText.innerText = `ข้อมูลล่าสุด ณ เดือน ${latestMonthText}`;
+  if(asOfDateText) asOfDateText.innerText = `ข้อมูลล่าสุด ณ เดือน ${latestMonth || 'ไม่มีข้อมูล'}`;
   
   const yearsToRetire = Math.max(0, retireAge - currentAge);
   const inflationFactor = Math.pow(1 + (inflationRate / 100), yearsToRetire);
@@ -1454,12 +1464,12 @@ function calculateRetirement(shouldSaveState = false) {
   if(targetNeededText) targetNeededText.innerText = '฿' + formatNumber(targetRetireWealthNeeded);
   if(targetDescText) targetDescText.innerText = `สำหรับใช้ชีวิตครอบคลุม ${lifeExpectancyYears} ปีหลังเกษียณ`;
 
+  // เป้าหมายที่ต้องออมต่อเดือนเดิม (คำนวณตั้งแต่วันนี้จากฐานยอดยังไม่รวมเดือนล่าสุด)
+  let totalMonthsToRetire = yearsToRetire * 12;
   let monthlySavingRequired = 0;
-  const totalMonthsToRetire = yearsToRetire * 12;
-  
   if (totalMonthsToRetire > 0) {
-    const absoluteGap = Math.max(0, targetRetireWealthNeeded - latestWealth);
-    monthlySavingRequired = absoluteGap / totalMonthsToRetire;
+    let gapBase = Math.max(0, targetRetireWealthNeeded - prevWealth);
+    monthlySavingRequired = gapBase / totalMonthsToRetire;
   }
   
   const monthlySavingText = document.getElementById('sim-monthly-saving-needed');
@@ -1481,68 +1491,67 @@ function calculateRetirement(shouldSaveState = false) {
     }
   }
 
-  // คำนวณยอดเงินสะสมที่เพิ่มขึ้นได้จริงในเดือนล่าสุด เทียบกับเดือนก่อนหน้า
-  let actualMonthlyContribution = 0;
-  if (sortedMonths.length >= 2) {
-    const latestM = sortedMonths[sortedMonths.length - 1];
-    const prevM = sortedMonths[sortedMonths.length - 2];
-    
-    let latestTotal = 0;
-    let prevTotal = 0;
-    
-    (db.funds || []).forEach(f => {
-      latestTotal += (db.records[latestM] && db.records[latestM][f.id]) || 0;
-      prevTotal += (db.records[prevM] && db.records[prevM][f.id]) || 0;
-    });
-    
-    actualMonthlyContribution = latestTotal - prevTotal;
-  } else if (sortedMonths.length === 1) {
-    const latestM = sortedMonths[0];
-    (db.funds || []).forEach(f => {
-      actualMonthlyContribution += (db.records[latestM] && db.records[latestM][f.id]) || 0;
-    });
+  // คำนวณเป้าหมาย "หลังจากเดือนนี้ ต้องเก็บอีกเดือนละเท่าไหร่"
+  let remainingMonths = Math.max(1, totalMonthsToRetire - 1);
+  let nextMonthlySavingRequired = 0;
+  if (totalMonthsToRetire > 0) {
+    let remainingGap = Math.max(0, targetRetireWealthNeeded - latestWealth);
+    nextMonthlySavingRequired = remainingGap / remainingMonths;
   }
 
-  // อัปเดต Element เปรียบเทียบเป้าหมาย VS ยอดสะสมจริง
-  const recentMonthLabel = document.getElementById('sim-recent-month-label');
-  const targetMonthlyVal = document.getElementById('sim-target-monthly-val');
-  const actualMonthlyVal = document.getElementById('sim-actual-monthly-val');
-  const compareStatusBox = document.getElementById('sim-compare-status-box');
+  // --- Render UI การเปรียบเทียบเป้าหมายการออม ---
+  const monthTag = document.getElementById('sim-comp-month-tag');
+  if (monthTag) monthTag.innerText = `ข้อมูลล่าสุด: ${latestMonth || '-'}`;
 
-  if (recentMonthLabel && sortedMonths.length > 0) {
-    recentMonthLabel.innerText = `ข้อมูลล่าสุด: ${sortedMonths[sortedMonths.length - 1]}`;
-  }
+  const targetMonthlyEl = document.getElementById('sim-target-monthly-val');
+  if (targetMonthlyEl) targetMonthlyEl.innerText = '฿' + formatNumber(monthlySavingRequired);
 
-  if (targetMonthlyVal) {
-    targetMonthlyVal.innerText = '฿' + formatNumber(monthlySavingRequired);
-  }
+  const prevSavedEl = document.getElementById('sim-prev-month-saved');
+  const prevLabelEl = document.getElementById('sim-prev-month-label');
+  if (prevSavedEl) prevSavedEl.innerText = '฿' + formatNumber(prevMonthSaved);
+  if (prevLabelEl && prevMonth) prevLabelEl.innerText = `ยอดออมจริง (${prevMonth})`;
 
-  if (actualMonthlyVal) {
-    const isPos = actualMonthlyContribution >= 0;
-    actualMonthlyVal.innerText = (isPos ? '฿' : '-฿') + formatNumber(Math.abs(actualMonthlyContribution));
-    actualMonthlyVal.className = `text-lg font-black ${isPos ? 'text-emerald-600' : 'text-rose-600'}`;
-  }
+  const currSavedEl = document.getElementById('sim-curr-month-saved');
+  const currLabelEl = document.getElementById('sim-curr-month-label');
+  if (currSavedEl) currSavedEl.innerText = '฿' + formatNumber(currentMonthSaved);
+  if (currLabelEl && latestMonth) currLabelEl.innerText = `เงินที่สะสมเพิ่มได้จริง (${latestMonth})`;
 
-  if (compareStatusBox) {
-    const diffFromTarget = actualMonthlyContribution - monthlySavingRequired;
-    if (monthlySavingRequired <= 0) {
-      compareStatusBox.className = "mt-3 p-2.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800";
-      compareStatusBox.innerHTML = `<span><i class="fa-solid fa-circle-check mr-1.5"></i> คุณออมเงินถึงเป้าหมายเกษียณเรียบร้อยแล้ว</span>`;
-    } else if (diffFromTarget >= 0) {
-      compareStatusBox.className = "mt-3 p-2.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800";
-      compareStatusBox.innerHTML = `
-        <span><i class="fa-solid fa-circle-check mr-1.5"></i> เดือนล่าสุดออมได้เกินเป้าหมาย</span>
-        <span class="font-black">+฿${formatNumber(diffFromTarget)}</span>
-      `;
+  const nextNeededEl = document.getElementById('sim-next-monthly-needed');
+  const nextDiffEl = document.getElementById('sim-next-monthly-diff');
+
+  if (nextNeededEl) nextNeededEl.innerText = '฿' + formatNumber(nextMonthlySavingRequired);
+
+  if (nextDiffEl) {
+    let diffNeeded = nextMonthlySavingRequired - monthlySavingRequired;
+    if (Math.abs(diffNeeded) < 1) {
+      nextDiffEl.innerText = "(เท่ากับเป้าหมายเดิม)";
+      nextDiffEl.className = "text-[10px] font-bold mt-0.5 text-slate-500";
+    } else if (diffNeeded < 0) {
+      nextDiffEl.innerText = `(ลดลง ฿${formatNumber(Math.abs(diffNeeded))} / เดือน 🎉)`;
+      nextDiffEl.className = "text-[10px] font-bold mt-0.5 text-emerald-600";
     } else {
-      compareStatusBox.className = "mt-3 p-2.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-800";
-      compareStatusBox.innerHTML = `
-        <span><i class="fa-solid fa-triangle-exclamation mr-1.5"></i> ยังขาดอีกนิดจะถึงเป้าออมรายเดือน</span>
-        <span class="font-black">-฿${formatNumber(Math.abs(diffFromTarget))}</span>
-      `;
+      nextDiffEl.innerText = `(ต้องเก็บเพิ่มอีก ฿${formatNumber(diffNeeded)} / เดือน ⚠️)`;
+      nextDiffEl.className = "text-[10px] font-bold mt-0.5 text-rose-600";
     }
   }
 
+  const compStatusBadge = document.getElementById('sim-comp-status-badge');
+  const compStatusText = document.getElementById('sim-comp-status-text');
+  
+  if (compStatusBadge && compStatusText) {
+    let diffTarget = currentMonthSaved - monthlySavingRequired;
+    if (diffTarget >= 0) {
+      compStatusBadge.className = "p-3 rounded-xl text-xs font-bold flex items-center space-x-2 bg-emerald-100 text-emerald-800";
+      compStatusBadge.querySelector('i').className = "fa-solid fa-circle-check text-emerald-600";
+      compStatusText.innerText = `เดือนล่าสุดออมได้เกินเป้าหมาย +฿${formatNumber(diffTarget)}`;
+    } else {
+      compStatusBadge.className = "p-3 rounded-xl text-xs font-bold flex items-center space-x-2 bg-amber-100 text-amber-800";
+      compStatusBadge.querySelector('i').className = "fa-solid fa-triangle-exclamation text-amber-600";
+      compStatusText.innerText = `เดือนล่าสุดออมขาดเป้าหมายไป -฿${formatNumber(Math.abs(diffTarget))}`;
+    }
+  }
+
+  // คำนวณระยะเวลาเงินที่มีอยู่ (ปี/เดือน)
   let yearlyExpenseAtRetire = baseExpensesPerMonth * 12 * inflationFactor;
   let remainingWealth = latestWealth; 
   let yearsCount = 0;
