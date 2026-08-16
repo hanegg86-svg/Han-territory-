@@ -1,97 +1,35 @@
-// ================= GLOBAL VARIABLES & HELPERS =================
-let activeEntryMonth = '';
-let autoSaveTimer = null;
-let entryDirty = false;
-let renderUsingCarryForward = false;
-let selectedSubCatsForCompare = [];
-
-let myChart = null;
-let allocChart = null;
-let trendChart = null;
-
-const CHART_COLORS = [
-  { border: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)' },
-  { border: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
-  { border: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
-  { border: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)' },
-  { border: '#ec4899', bg: 'rgba(236, 72, 153, 0.1)' }
-];
-
-const SUB_COLORS = [
-  '#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', 
-  '#06b6d4', '#84cc16', '#d97706', '#6366f1', '#14b8a6'
-];
-
-function generateId() {
-  return Math.random().toString(36).substr(2, 9);
-}
-
-function getCurrentMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function parseLocalNumber(val) {
-  if (typeof val === 'number') return val;
-  if (!val) return 0;
-  const clean = String(val).replace(/,/g, '').trim();
-  const num = parseFloat(clean);
-  return isNaN(num) ? 0 : num;
-}
-
-function formatNumber(num) {
-  const n = parseLocalNumber(num);
-  return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
-}
-
-function showToast(msg) {
-  const toast = document.getElementById('global-toast');
-  const msgEl = document.getElementById('toast-message');
-  if (!toast || !msgEl) return;
-  msgEl.innerText = msg;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2500);
-}
-
 // Register Chart.js Custom Value Labels Plugin
-if (typeof Chart !== 'undefined') {
-  const chartValueLabelsPlugin = {
-    id: 'chartValueLabelsPlugin',
-    afterDatasetsDraw(chart) {
-      if(chart.config.type !== 'line') return;
-      const ctx = chart.ctx;
-      const labelCount = chart.data.labels.length;
-      const showAll = labelCount <= 12; 
-      
-      ctx.save();
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
+const chartValueLabelsPlugin = {
+  id: 'chartValueLabelsPlugin',
+  afterDatasetsDraw(chart) {
+    if(chart.config.type !== 'line') return;
+    const ctx = chart.ctx;
+    const labelCount = chart.data.labels.length;
+    const showAll = labelCount <= 12; 
+    
+    ctx.save();
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
 
-      chart.data.datasets.forEach((dataset, datasetIndex) => {
-        const meta = chart.getDatasetMeta(datasetIndex);
-        if (meta.hidden) return;
-        meta.data.forEach((point, index) => {
-          if (!showAll && index !== labelCount - 1 && index % Math.ceil(labelCount / 6) !== 0) return;
-          const value = dataset.data[index];
-          if (value > 0) {
-            const displayVal = value >= 1000000 ? (value / 1000000).toFixed(1) + 'M' 
-                             : value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value;
-            ctx.fillStyle = dataset.borderColor;
-            ctx.fillText(displayVal, point.x, point.y - 8);
-          }
-        });
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (meta.hidden) return;
+      meta.data.forEach((point, index) => {
+        if (!showAll && index !== labelCount - 1 && index % Math.ceil(labelCount / 6) !== 0) return;
+        const value = dataset.data[index];
+        if (value > 0) {
+          const displayVal = value >= 1000000 ? (value / 1000000).toFixed(1) + 'M' 
+                           : value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value;
+          ctx.fillStyle = dataset.borderColor;
+          ctx.fillText(displayVal, point.x, point.y - 8);
+        }
       });
-      ctx.restore();
-    }
-  };
-  Chart.register(chartValueLabelsPlugin);
-}
+    });
+    ctx.restore();
+  }
+};
+Chart.register(chartValueLabelsPlugin);
 
 // ================= SETUP MODULE =================
 function renderSetupTab() {
@@ -1116,37 +1054,6 @@ function renderAnnualPerformanceTable(filterId) {
 }
 
 // ================= ALLOCATION MODULE =================
-function getSubCatAllocationData(subName, endMonthStr, monthsBack) {
-  const allMonths = Object.keys(db.records || {}).sort();
-  if (!allMonths.includes(endMonthStr)) return null;
-
-  let matchedMonth = endMonthStr;
-  if (monthsBack > 0) {
-    const targetTotalMonths = monthToTotalMonths(endMonthStr) - monthsBack;
-    const targetYear = Math.floor((targetTotalMonths - 1) / 12);
-    const targetM = targetTotalMonths - (targetYear * 12);
-    const targetMonthStr = `${targetYear}-${String(targetM).padStart(2, '0')}`;
-
-    const filterId = `SUBCAT_${subName}`;
-    const inceptionMonth = allMonths.find(m => getMarketValueByFilter(filterId, m) > 0);
-    
-    if (!inceptionMonth || targetMonthStr < inceptionMonth) {
-      return null;
-    }
-    matchedMonth = allMonths.filter(m => m <= targetMonthStr).pop() || inceptionMonth;
-  }
-
-  const subVal = getMarketValueByFilter(`SUBCAT_${subName}`, matchedMonth) || 0;
-  const totalVal = getMarketValueByFilter('ALL_PORTFOLIO', matchedMonth) || 0;
-  const sharePct = totalVal > 0 ? (subVal / totalVal) * 100 : 0;
-
-  return {
-    value: subVal,
-    sharePct: sharePct,
-    monthLabel: matchedMonth
-  };
-}
-
 function initAllocationTab() {
   const sortedMonths = Object.keys(db.records || {}).sort();
   const monthSelect = document.getElementById('alloc-month-select');
@@ -1434,74 +1341,8 @@ function calculateAllocation(shouldSaveState = false) {
     });
   }
 
-  renderSubCatMultiPeriodValueTable(targetMonth);
-
   const sortedMonths = Object.keys(db.records || {}).sort();
   renderPortfolioTrendChart(sortedMonths);
-}
-
-function renderSubCatMultiPeriodValueTable(targetMonth) {
-  const tbody = document.getElementById('subcat-multi-period-body');
-  const targetLabel = document.getElementById('subcat-multi-target-month');
-  if (!tbody) return;
-  
-  if (targetLabel) targetLabel.innerText = targetMonth || '-';
-  tbody.innerHTML = '';
-
-  let uniqueSubs = getAllUniqueSubCategories();
-  if ((db.funds || []).some(f => !f.subCategories || f.subCategories.length === 0)) {
-    uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
-  }
-
-  if (uniqueSubs.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400">ไม่มีข้อมูลประเภทย่อยในระบบ</td></tr>`;
-    return;
-  }
-
-  uniqueSubs.forEach(subName => {
-    const currData = getSubCatAllocationData(subName, targetMonth, 0);
-    const data1Y = getSubCatAllocationData(subName, targetMonth, 12);
-    const data2Y = getSubCatAllocationData(subName, targetMonth, 24);
-    const data3Y = getSubCatAllocationData(subName, targetMonth, 36);
-
-    const renderCellContent = (item, olderItem, isCurrent = false) => {
-      if (!item) return `<span class="text-slate-300 font-normal">N/A</span>`;
-      
-      const pct = item.sharePct;
-      let diffHtml = '';
-
-      if (olderItem) {
-        const diffPctPoint = pct - olderItem.sharePct;
-        const isPos = diffPctPoint >= 0;
-        const sign = isPos ? '+' : '';
-        const colorClass = isPos ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold';
-        diffHtml = `<div class="font-mono text-[10px] ${colorClass}">${sign}${diffPctPoint.toFixed(2)}%pt</div>`;
-      }
-
-      if (isCurrent) {
-        return `
-          <div class="font-mono text-sm font-black text-blue-700">${pct.toFixed(2)}%</div>
-          ${diffHtml}
-          <div class="font-mono text-[10px] text-slate-500 font-semibold mt-0.5">฿${formatNumber(item.value)}</div>
-        `;
-      }
-
-      return `
-        <div class="font-mono font-bold text-slate-800">${pct.toFixed(2)}%</div>
-        ${diffHtml}
-        <div class="text-[9px] text-slate-400 font-normal mt-0.5">(${item.monthLabel})</div>
-      `;
-    };
-
-    tbody.innerHTML += `
-      <tr class="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
-        <td class="p-3 font-bold text-slate-800">${escapeHtml(subName)}</td>
-        <td class="p-3 text-right font-mono bg-blue-50/30">${renderCellContent(currData, data1Y, true)}</td>
-        <td class="p-3 text-right font-mono">${renderCellContent(data1Y, data2Y)}</td>
-        <td class="p-3 text-right font-mono">${renderCellContent(data2Y, data3Y)}</td>
-        <td class="p-3 text-right font-mono">${renderCellContent(data3Y, null)}</td>
-      </tr>`;
-  });
 }
 
 function renderPortfolioTrendChart(monthsArray) {
@@ -1569,8 +1410,10 @@ function calculateRetirement(shouldSaveState = false) {
   let latestWealth = getMonthTotal(latestMonth);
   let prevWealth = getMonthTotal(prevMonth);
 
+  // เงินที่สะสมเพิ่มได้จริงในเดือนล่าสุด
   let currentMonthSaved = latestWealth - prevWealth;
 
+  // คำนวณยอดออมจริงเฉลี่ยของปีนี้
   const currentYearStr = latestMonth ? latestMonth.split('-')[0] : new Date().getFullYear().toString();
   const monthsInCurrentYear = sortedMonths.filter(m => m.startsWith(currentYearStr));
 
@@ -1668,6 +1511,7 @@ function calculateRetirement(shouldSaveState = false) {
     nextMonthlySavingRequired = remainingGap / remainingMonths;
   }
 
+  // --- Render UI การเปรียบเทียบเป้าหมายการออม ---
   const monthTag = document.getElementById('sim-comp-month-tag');
   if (monthTag) monthTag.innerText = `ข้อมูลล่าสุด: ${latestMonth || '-'}`;
 
@@ -1719,6 +1563,7 @@ function calculateRetirement(shouldSaveState = false) {
     }
   }
 
+  // คำนวณระยะเวลาเงินที่มีอยู่ (ปี/เดือน)
   let yearlyExpenseAtRetire = baseExpensesPerMonth * 12 * inflationFactor;
   let remainingWealth = latestWealth; 
   let yearsCount = 0;
@@ -1776,6 +1621,7 @@ function loadPlanningSettings() {
       if(document.getElementById('sim-life-expectancy')) document.getElementById('sim-life-expectancy').value = db.planningSettings.lifeExpectancy || 20;
       if(document.getElementById('sim-inflation')) document.getElementById('sim-inflation').value = db.planningSettings.inflation || 2.5;
       
+      // ดึงค่า lifestyle เพื่อเลือก Radio Button ให้อัตโนมัติ (รองรับ 20k, 40k, 50k, 70k)
       if (db.planningSettings.lifestyle) {
         const radio = document.querySelector(`input[name="sim-lifestyle"][value="${db.planningSettings.lifestyle}"]`);
         if (radio) radio.checked = true;
