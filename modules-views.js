@@ -1390,25 +1390,44 @@ function renderSubCatMultiPeriodValueTable(targetMonth) {
 
   uniqueSubs.forEach(subName => {
     const filterId = `SUBCAT_${subName}`;
-    const currentVal = getMarketValueByFilter(filterId, targetMonth);
+    const currentVal = getMarketValueByFilter(filterId, targetMonth) || 0;
     
-    const val1Y = getSubCatMarketValueBack(subName, targetMonth, 12);
-    const val3Y = getSubCatMarketValueBack(subName, targetMonth, 36);
     const val5Y = getSubCatMarketValueBack(subName, targetMonth, 60);
+    const val3Y = getSubCatMarketValueBack(subName, targetMonth, 36);
+    const val1Y = getSubCatMarketValueBack(subName, targetMonth, 12);
 
-    const formatValCell = (item) => {
+    // คำนวณผลต่าง (บาท) และ % เติบโตเฉลี่ยต่อปี (CAGR / Annualized Rate)
+    const formatDiffCell = (item, yearsBack) => {
       if (!item || item.value === null) return `<span class="text-slate-300 font-normal">N/A</span>`;
-      return `<div class="font-mono font-bold text-slate-800">฿${formatNumber(item.value)}</div>
-              <div class="text-[9px] text-slate-400 font-normal">(${item.monthLabel})</div>`;
+      
+      const baseVal = item.value;
+      const diff = currentVal - baseVal;
+      
+      let annualPct = 0;
+      if (baseVal > 0 && currentVal > 0) {
+        annualPct = (Math.pow(currentVal / baseVal, 1 / yearsBack) - 1) * 100;
+      } else if (baseVal > 0) {
+        annualPct = ((currentVal - baseVal) / baseVal / yearsBack) * 100;
+      }
+
+      const isPos = diff >= 0;
+      const sign = isPos ? '+' : '';
+      const colorClass = isPos ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold';
+
+      return `
+        <div class="font-mono ${colorClass}">${sign}${formatNumber(diff)} บ.</div>
+        <div class="font-mono text-[10px] ${colorClass}">${sign}${annualPct.toFixed(2)}%/ปี</div>
+        <div class="text-[9px] text-slate-400 font-normal mt-0.5">(${item.monthLabel})</div>
+      `;
     };
 
     tbody.innerHTML += `
       <tr class="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
         <td class="p-3 font-bold text-slate-800">${escapeHtml(subName)}</td>
+        <td class="p-3 text-right font-mono">${formatDiffCell(val5Y, 5)}</td>
+        <td class="p-3 text-right font-mono">${formatDiffCell(val3Y, 3)}</td>
+        <td class="p-3 text-right font-mono">${formatDiffCell(val1Y, 1)}</td>
         <td class="p-3 text-right font-mono font-bold text-blue-700 bg-blue-50/30">฿${formatNumber(currentVal)}</td>
-        <td class="p-3 text-right font-mono">${formatValCell(val1Y)}</td>
-        <td class="p-3 text-right font-mono">${formatValCell(val3Y)}</td>
-        <td class="p-3 text-right font-mono">${formatValCell(val5Y)}</td>
       </tr>`;
   });
 }
