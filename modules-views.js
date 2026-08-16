@@ -1372,13 +1372,7 @@ function calculateAllocation(shouldSaveState = false) {
     });
   }
 
-  renderSubCatMultiPeriodValueTable(targetMonth);
-
-  const sortedMonths = Object.keys(db.records || {}).sort();
-  renderPortfolioTrendChart(sortedMonths);
-}
-
-function renderSubCatMultiPeriodValueTable(targetMonth) {
+  function renderSubCatMultiPeriodValueTable(targetMonth) {
   const tbody = document.getElementById('subcat-multi-period-body');
   const targetLabel = document.getElementById('subcat-multi-target-month');
   if (!tbody) return;
@@ -1402,25 +1396,27 @@ function renderSubCatMultiPeriodValueTable(targetMonth) {
     const data2Y = getSubCatAllocationData(subName, targetMonth, 24);
     const data3Y = getSubCatAllocationData(subName, targetMonth, 36);
 
-    const currPct = currData ? currData.sharePct : 0;
-    const currVal = currData ? currData.value : 0;
-    const currentCell = `
-      <div class="font-mono text-sm font-black text-blue-700">${currPct.toFixed(2)}%</div>
-      <div class="font-mono text-[10px] text-slate-500 font-semibold">฿${formatNumber(currVal)}</div>
-    `;
-
-    const formatDiffCell = (item, newerItem) => {
+    // ฟังก์ชันช่วยสร้างการแสดงผล % สัดส่วน และ %pt เทียบกับอดีต (คอลัมน์ด้านขวาของตัวมันเอง)
+    const formatAllocCell = (item, olderItem, isCurrent = false) => {
       if (!item) return `<span class="text-slate-300 font-normal">N/A</span>`;
       
       const pct = item.sharePct;
       let diffHtml = '';
 
-      if (newerItem) {
-        const diffPctPoint = newerItem.sharePct - pct;
+      if (olderItem) {
+        const diffPctPoint = pct - olderItem.sharePct; // นำค่าปัจจุบัน/ใหม่กว่า ลบด้วย ค่าในอดีต
         const isPos = diffPctPoint >= 0;
         const sign = isPos ? '+' : '';
         const colorClass = isPos ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold';
         diffHtml = `<div class="font-mono text-[10px] ${colorClass}">${sign}${diffPctPoint.toFixed(2)}%pt</div>`;
+      }
+
+      if (isCurrent) {
+        return `
+          <div class="font-mono text-sm font-black text-blue-700">${pct.toFixed(2)}%</div>
+          ${diffHtml}
+          <div class="font-mono text-[10px] text-slate-500 font-semibold mt-0.5">฿${formatNumber(item.value)}</div>
+        `;
       }
 
       return `
@@ -1433,13 +1429,14 @@ function renderSubCatMultiPeriodValueTable(targetMonth) {
     tbody.innerHTML += `
       <tr class="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
         <td class="p-3 font-bold text-slate-800">${escapeHtml(subName)}</td>
-        <td class="p-3 text-right font-mono bg-blue-50/30">${currentCell}</td>
-        <td class="p-3 text-right font-mono">${formatDiffCell(data1Y, currData)}</td>
-        <td class="p-3 text-right font-mono">${formatDiffCell(data2Y, data1Y)}</td>
-        <td class="p-3 text-right font-mono">${formatDiffCell(data3Y, data2Y)}</td>
+        <td class="p-3 text-right font-mono bg-blue-50/30">${formatAllocCell(currData, data1Y, true)}</td>
+        <td class="p-3 text-right font-mono">${formatAllocCell(data1Y, data2Y)}</td>
+        <td class="p-3 text-right font-mono">${formatAllocCell(data2Y, data3Y)}</td>
+        <td class="p-3 text-right font-mono">${formatAllocCell(data3Y, null)}</td>
       </tr>`;
   });
 }
+
 
 function renderPortfolioTrendChart(monthsArray) {
   const lineCanvas = document.getElementById('portfolioTrendChart');
