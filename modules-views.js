@@ -1054,6 +1054,29 @@ function renderAnnualPerformanceTable(filterId) {
 }
 
 // ================= ALLOCATION MODULE =================
+function getSubCatMarketValueBack(subName, endMonthStr, monthsBack) {
+  const allMonths = Object.keys(db.records || {}).sort();
+  if (!allMonths.includes(endMonthStr)) return null;
+
+  const targetTotalMonths = monthToTotalMonths(endMonthStr) - monthsBack;
+  const targetYear = Math.floor((targetTotalMonths - 1) / 12);
+  const targetM = targetTotalMonths - (targetYear * 12);
+  const targetMonthStr = `${targetYear}-${String(targetM).padStart(2, '0')}`;
+
+  const filterId = `SUBCAT_${subName}`;
+  const inceptionMonth = allMonths.find(m => getMarketValueByFilter(filterId, m) > 0);
+  
+  if (!inceptionMonth || targetMonthStr < inceptionMonth) {
+    return null;
+  }
+
+  let matchedMonth = allMonths.filter(m => m <= targetMonthStr).pop() || inceptionMonth;
+  return {
+    value: getMarketValueByFilter(filterId, matchedMonth),
+    monthLabel: matchedMonth
+  };
+}
+
 function initAllocationTab() {
   const sortedMonths = Object.keys(db.records || {}).sort();
   const monthSelect = document.getElementById('alloc-month-select');
@@ -1341,60 +1364,53 @@ function calculateAllocation(shouldSaveState = false) {
     });
   }
 
-  // --- คำนวณและแสดงตารางผลตอบแทนย้อนหลังเฉพาะรอบ 1 ปี (1Y Return เฉพาะช่วง 12 เดือน) ---
-  const subCat1YBody = document.getElementById('subcat-1y-returns-body');
-  if (subCat1YBody) {
-    subCat1YBody.innerHTML = '';
-    
-    selectedSubCatsForCompare.forEach(subName => {
-      const filterKey = `SUBCAT_${subName}`;
-      const periodReturns = calculatePeriodReturns(filterKey, targetMonth);
-      const currentMV = getMarketValueByFilter(filterKey, targetMonth) || 0;
-      
-      let return1YPct = null;
-      let matchedStartMonth = null;
-      if (periodReturns && periodReturns['1y']) {
-        return1YPct = periodReturns['1y'].returnPct;
-        matchedStartMonth = periodReturns['1y'].matchedMonth;
-      }
-      
-      let pctHtml = '<span class="text-slate-400">N/A</span>';
-      let profitHtml = '<span class="text-slate-400">-</span>';
-      
-      if (return1YPct !== null && !isNaN(return1YPct) && isFinite(return1YPct) && matchedStartMonth) {
-        // คำนวณกำไร/ขาดทุนสะสมของเดือนปัจจุบัน
-        const endCost = getCostBasisByFilter(filterKey, targetMonth) || 0;
-        const endProfit = currentMV - endCost;
-        
-        // คำนวณกำไร/ขาดทุนสะสมของเดือนเมื่อ 12 เดือนก่อน
-        const startMV = getMarketValueByFilter(filterKey, matchedStartMonth) || 0;
-        const startCost = getCostBasisByFilter(filterKey, matchedStartMonth) || 0;
-        const startProfit = startMV - startCost;
-        
-        // ผลตอบแทนเป็นบาทที่เปลี่ยนแปลงเฉพาะในช่วง 1 ปี
-        const profit1YDiff = endProfit - startProfit;
-
-        const isPos = return1YPct >= 0;
-        const colorClass = isPos ? 'text-emerald-600' : 'text-rose-600';
-        const sign = isPos ? '+' : '';
-
-        profitHtml = `<span class="font-mono font-bold ${colorClass}">${sign}${formatNumber(profit1YDiff)}</span>`;
-        pctHtml = `<span class="font-mono font-bold ${colorClass}">${sign}${return1YPct.toFixed(2)}%</span>`;
-      }
-      
-      subCat1YBody.innerHTML += `
-        <tr class="border-b border-slate-100 hover:bg-slate-50">
-          <td class="p-3 font-bold text-slate-800">${escapeHtml(subName)}</td>
-          <td class="p-3 text-right font-mono">฿${formatNumber(currentMV)}</td>
-          <td class="p-3 text-right">${profitHtml}</td>
-          <td class="p-3 text-right">${pctHtml}</td>
-        </tr>
-      `;
-    });
-  }
+  renderSubCatMultiPeriodValueTable(targetMonth);
 
   const sortedMonths = Object.keys(db.records || {}).sort();
   renderPortfolioTrendChart(sortedMonths);
+}
+
+function renderSubCatMultiPeriodValueTable(targetMonth) {
+  const tbody = document.getElementById('subcat-multi-period-body');
+  const targetLabel = document.getElementById('subcat-multi-target-month');
+  if (!tbody) return;
+  
+  if (targetLabel) targetLabel.innerText = targetMonth || '-';
+  tbody.innerHTML = '';
+
+  let uniqueSubs = getAllUniqueSubCategories();
+  if ((db.funds || []).some(f => !f.subCategories || f.subCategories.length === 0)) {
+    uniqueSubs.push('ยังไม่ได้ระบุประเภทย่อย');
+  }
+
+  if (uniqueSubs.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400">ไม่มีข้อมูลประเภทย่อยในระบบ</td></tr>`;
+    return;
+  }
+
+  uniqueSubs.forEach(subName => {
+    const filterId = `SUBCAT_${subName}`;
+    const currentVal = getMarketValueByFilter(filterId, targetMonth);
+    
+    const val1Y = getSubCatMarketValueBack(subName, targetMonth, 12);
+    const val3Y = getSubCatMarketValueBack(subName, targetMonth, 36);
+    const val5Y = getSubCatMarketValueBack(subName, targetMonth, 60);
+
+    const formatValCell = (item) => {
+      if (!item || item.value === null) return `<span class="text-slate-300 font-normal">N/A</span>`;
+      return `<div class="font-mono font-bold text-slate-800">฿${formatNumber(item.value)}</div>
+              <div class="text-[9px] text-slate-400 font-normal">(${item.monthLabel})</div>`;
+    };
+
+    tbody.innerHTML += `
+      <tr class="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
+        <td class="p-3 font-bold text-slate-800">${escapeHtml(subName)}</td>
+        <td class="p-3 text-right font-mono font-bold text-blue-700 bg-blue-50/30">฿${formatNumber(currentVal)}</td>
+        <td class="p-3 text-right font-mono">${formatValCell(val1Y)}</td>
+        <td class="p-3 text-right font-mono">${formatValCell(val3Y)}</td>
+        <td class="p-3 text-right font-mono">${formatValCell(val5Y)}</td>
+      </tr>`;
+  });
 }
 
 function renderPortfolioTrendChart(monthsArray) {
@@ -1462,10 +1478,8 @@ function calculateRetirement(shouldSaveState = false) {
   let latestWealth = getMonthTotal(latestMonth);
   let prevWealth = getMonthTotal(prevMonth);
 
-  // เงินที่สะสมเพิ่มได้จริงในเดือนล่าสุด
   let currentMonthSaved = latestWealth - prevWealth;
 
-  // คำนวณยอดออมจริงเฉลี่ยของปีนี้
   const currentYearStr = latestMonth ? latestMonth.split('-')[0] : new Date().getFullYear().toString();
   const monthsInCurrentYear = sortedMonths.filter(m => m.startsWith(currentYearStr));
 
@@ -1563,7 +1577,6 @@ function calculateRetirement(shouldSaveState = false) {
     nextMonthlySavingRequired = remainingGap / remainingMonths;
   }
 
-  // --- Render UI การเปรียบเทียบเป้าหมายการออม ---
   const monthTag = document.getElementById('sim-comp-month-tag');
   if (monthTag) monthTag.innerText = `ข้อมูลล่าสุด: ${latestMonth || '-'}`;
 
@@ -1615,7 +1628,6 @@ function calculateRetirement(shouldSaveState = false) {
     }
   }
 
-  // คำนวณระยะเวลาเงินที่มีอยู่ (ปี/เดือน)
   let yearlyExpenseAtRetire = baseExpensesPerMonth * 12 * inflationFactor;
   let remainingWealth = latestWealth; 
   let yearsCount = 0;
@@ -1673,7 +1685,6 @@ function loadPlanningSettings() {
       if(document.getElementById('sim-life-expectancy')) document.getElementById('sim-life-expectancy').value = db.planningSettings.lifeExpectancy || 20;
       if(document.getElementById('sim-inflation')) document.getElementById('sim-inflation').value = db.planningSettings.inflation || 2.5;
       
-      // ดึงค่า lifestyle เพื่อเลือก Radio Button ให้อัตโนมัติ (รองรับ 20k, 40k, 50k, 70k)
       if (db.planningSettings.lifestyle) {
         const radio = document.querySelector(`input[name="sim-lifestyle"][value="${db.planningSettings.lifestyle}"]`);
         if (radio) radio.checked = true;
