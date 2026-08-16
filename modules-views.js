@@ -1372,7 +1372,13 @@ function calculateAllocation(shouldSaveState = false) {
     });
   }
 
-  function renderSubCatMultiPeriodValueTable(targetMonth) {
+  renderSubCatMultiPeriodValueTable(targetMonth);
+
+  const sortedMonths = Object.keys(db.records || {}).sort();
+  renderPortfolioTrendChart(sortedMonths);
+}
+
+function renderSubCatMultiPeriodValueTable(targetMonth) {
   const tbody = document.getElementById('subcat-multi-period-body');
   const targetLabel = document.getElementById('subcat-multi-target-month');
   if (!tbody) return;
@@ -1396,7 +1402,7 @@ function calculateAllocation(shouldSaveState = false) {
     const data2Y = getSubCatAllocationData(subName, targetMonth, 24);
     const data3Y = getSubCatAllocationData(subName, targetMonth, 36);
 
-    // ฟังก์ชันช่วยแสดงผลต่าง %pt โดยคำนวณ (ค่ารอบปัจจุบัน - ค่ารอบอดีตขวามือ) แล้วแสดงที่ช่องปัจจุบัน/ใหม่กว่า
+    // ฟังก์ชันสร้างการแสดงผล % สัดส่วน และ %pt ผลต่าง (นำค่าช่องปัจจุบัน/ใหม่กว่า ลบด้วย ค่าช่องอดีตทางขวา)
     const renderCellContent = (item, olderItem, isCurrent = false) => {
       if (!item) return `<span class="text-slate-300 font-normal">N/A</span>`;
       
@@ -1404,7 +1410,7 @@ function calculateAllocation(shouldSaveState = false) {
       let diffHtml = '';
 
       if (olderItem) {
-        const diffPctPoint = pct - olderItem.sharePct; // ค่าในช่องนี้ ลบด้วย ค่าอดีตทางขวา
+        const diffPctPoint = pct - olderItem.sharePct; // ค่าในช่องนี้ ลบด้วย ค่าอดีตทางขวามือ
         const isPos = diffPctPoint >= 0;
         const sign = isPos ? '+' : '';
         const colorClass = isPos ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold';
@@ -1436,8 +1442,6 @@ function calculateAllocation(shouldSaveState = false) {
       </tr>`;
   });
 }
-
-
 
 function renderPortfolioTrendChart(monthsArray) {
   const lineCanvas = document.getElementById('portfolioTrendChart');
