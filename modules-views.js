@@ -1341,7 +1341,7 @@ function calculateAllocation(shouldSaveState = false) {
     });
   }
 
-  // --- คำนวณและแสดงตารางผลตอบแทนย้อนหลัง 1 ปี ของแต่ละประเภทย่อย (แก้ไขบั๊กการแสดงสีและเครื่องหมาย + -) ---
+  // --- คำนวณและแสดงตารางผลตอบแทนย้อนหลังเฉพาะรอบ 1 ปี (1Y Return เฉพาะช่วง 12 เดือน) ---
   const subCat1YBody = document.getElementById('subcat-1y-returns-body');
   if (subCat1YBody) {
     subCat1YBody.innerHTML = '';
@@ -1352,27 +1352,34 @@ function calculateAllocation(shouldSaveState = false) {
       const currentMV = getMarketValueByFilter(filterKey, targetMonth) || 0;
       
       let return1YPct = null;
+      let matchedStartMonth = null;
       if (periodReturns && periodReturns['1y']) {
         return1YPct = periodReturns['1y'].returnPct;
+        matchedStartMonth = periodReturns['1y'].matchedMonth;
       }
-      
-      const currentCost = getCostBasisByFilter(filterKey, targetMonth) || 0;
-      const profit1Y = currentMV - currentCost;
       
       let pctHtml = '<span class="text-slate-400">N/A</span>';
       let profitHtml = '<span class="text-slate-400">-</span>';
       
-      if (return1YPct !== null && !isNaN(return1YPct) && isFinite(return1YPct)) {
-        // เช็กสถานะกำไร/ขาดทุนจาก profit1Y เพื่อกำหนดเครื่องหมายและสีให้ถูกต้อง
-        const isProfitPos = profit1Y >= 0;
-        const profitColorClass = isProfitPos ? 'text-emerald-600' : 'text-rose-600';
-        const profitSign = isProfitPos ? '+' : '';
-        profitHtml = `<span class="font-mono font-bold ${profitColorClass}">${profitSign}${formatNumber(profit1Y)}</span>`;
+      if (return1YPct !== null && !isNaN(return1YPct) && isFinite(return1YPct) && matchedStartMonth) {
+        // คำนวณกำไร/ขาดทุนสะสมของเดือนปัจจุบัน
+        const endCost = getCostBasisByFilter(filterKey, targetMonth) || 0;
+        const endProfit = currentMV - endCost;
+        
+        // คำนวณกำไร/ขาดทุนสะสมของเดือนเมื่อ 12 เดือนก่อน
+        const startMV = getMarketValueByFilter(filterKey, matchedStartMonth) || 0;
+        const startCost = getCostBasisByFilter(filterKey, matchedStartMonth) || 0;
+        const startProfit = startMV - startCost;
+        
+        // ผลตอบแทนเป็นบาทที่เปลี่ยนแปลงเฉพาะในช่วง 1 ปี
+        const profit1YDiff = endProfit - startProfit;
 
-        const isPctPos = return1YPct >= 0;
-        const pctColorClass = isPctPos ? 'text-emerald-600' : 'text-rose-600';
-        const pctSign = isPctPos ? '+' : '';
-        pctHtml = `<span class="font-mono font-bold ${pctColorClass}">${pctSign}${return1YPct.toFixed(2)}%</span>`;
+        const isPos = return1YPct >= 0;
+        const colorClass = isPos ? 'text-emerald-600' : 'text-rose-600';
+        const sign = isPos ? '+' : '';
+
+        profitHtml = `<span class="font-mono font-bold ${colorClass}">${sign}${formatNumber(profit1YDiff)}</span>`;
+        pctHtml = `<span class="font-mono font-bold ${colorClass}">${sign}${return1YPct.toFixed(2)}%</span>`;
       }
       
       subCat1YBody.innerHTML += `
