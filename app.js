@@ -30,11 +30,12 @@ function installPWA() {
 
 // ================= TAB ROUTING & CONTROLLER =================
 function switchTab(tabId) {
-  if (currentTab === 'tab-entry' && tabId !== 'tab-entry' && entryDirty) {
+  if (typeof currentTab !== 'undefined' && currentTab === 'tab-entry' && tabId !== 'tab-entry' && entryDirty) {
     clearTimeout(autoSaveTimer);
     saveEntryMonth(activeEntryMonth, { silent: true });
   }
-  currentTab = tabId;
+  if (typeof currentTab !== 'undefined') currentTab = tabId;
+  
   document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('[id^="btn-tab-"]').forEach(btn => {
     btn.classList.remove('bg-white', 'shadow-sm', 'text-blue-700');
@@ -61,15 +62,20 @@ function switchTab(tabId) {
 
 function refreshCurrentTab() {
   checkEmptyState();
-  if (currentTab === 'tab-setup') { renderSetupTab(); updateApiKeyStatusBadge(); }
-  if (currentTab === 'tab-entry') initEntryTab();
-  if (currentTab === 'tab-compare') initCompareTab();
-  if (currentTab === 'tab-charts') initChartsTab();
-  if (currentTab === 'tab-planning') initPlanningTab();
-  if (currentTab === 'tab-transactions') initTransactionsTab();
-  if (currentTab === 'tab-allocation') initAllocationTab();
+  if (typeof currentTab !== 'undefined') {
+    if (currentTab === 'tab-setup') { renderSetupTab(); updateApiKeyStatusBadge(); }
+    if (currentTab === 'tab-entry') initEntryTab();
+    if (currentTab === 'tab-compare') initCompareTab();
+    if (currentTab === 'tab-charts') initChartsTab();
+    if (currentTab === 'tab-planning') initPlanningTab();
+    if (currentTab === 'tab-transactions') initTransactionsTab();
+    if (currentTab === 'tab-allocation') initAllocationTab();
+  }
 }
 
 // ================= APP INITIALIZATION =================
-loadDB();
-switchTab('tab-compare');
+// โหลดข้อมูลและเรนเดอร์หลังจาก DOM พร้อม 100%
+document.addEventListener('DOMContentLoaded', () => {
+  loadDB();
+  switchTab('tab-compare');
+});
