@@ -1341,6 +1341,45 @@ function calculateAllocation(shouldSaveState = false) {
     });
   }
 
+  // --- คำนวณและแสดงตารางผลตอบแทนย้อนหลัง 1 ปี ของแต่ละประเภทย่อย ---
+  const subCat1YBody = document.getElementById('subcat-1y-returns-body');
+  if (subCat1YBody) {
+    subCat1YBody.innerHTML = '';
+    
+    selectedSubCatsForCompare.forEach(subName => {
+      const filterKey = `SUBCAT_${subName}`;
+      const periodReturns = calculatePeriodReturns(filterKey, targetMonth);
+      const currentMV = getMarketValueByFilter(filterKey, targetMonth) || 0;
+      
+      let return1YPct = null;
+      if (periodReturns && periodReturns['1y']) {
+        return1YPct = periodReturns['1y'].returnPct;
+      }
+      
+      const currentCost = getCostBasisByFilter(filterKey, targetMonth) || 0;
+      const profit1Y = currentMV - currentCost;
+      
+      let pctHtml = '<span class="text-slate-400">N/A</span>';
+      let profitHtml = '<span class="text-slate-400">-</span>';
+      
+      if (return1YPct !== null && !isNaN(return1YPct) && isFinite(return1YPct)) {
+        const isPos = return1YPct >= 0;
+        const colorClass = isPos ? 'text-emerald-600' : 'text-rose-600';
+        pctHtml = `<span class="font-mono font-bold ${colorClass}">${isPos ? '+' : ''}${return1YPct.toFixed(2)}%</span>`;
+        profitHtml = `<span class="font-mono font-bold ${colorClass}">${isPos ? '+' : ''}${formatNumber(profit1Y)}</span>`;
+      }
+      
+      subCat1YBody.innerHTML += `
+        <tr class="border-b border-slate-100 hover:bg-slate-50">
+          <td class="p-3 font-bold text-slate-800">${escapeHtml(subName)}</td>
+          <td class="p-3 text-right font-mono">฿${formatNumber(currentMV)}</td>
+          <td class="p-3 text-right">${profitHtml}</td>
+          <td class="p-3 text-right">${pctHtml}</td>
+        </tr>
+      `;
+    });
+  }
+
   const sortedMonths = Object.keys(db.records || {}).sort();
   renderPortfolioTrendChart(sortedMonths);
 }
