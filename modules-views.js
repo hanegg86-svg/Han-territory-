@@ -1054,25 +1054,33 @@ function renderAnnualPerformanceTable(filterId) {
 }
 
 // ================= ALLOCATION MODULE =================
-function getSubCatMarketValueBack(subName, endMonthStr, monthsBack) {
+function getSubCatAllocationData(subName, endMonthStr, monthsBack) {
   const allMonths = Object.keys(db.records || {}).sort();
   if (!allMonths.includes(endMonthStr)) return null;
 
-  const targetTotalMonths = monthToTotalMonths(endMonthStr) - monthsBack;
-  const targetYear = Math.floor((targetTotalMonths - 1) / 12);
-  const targetM = targetTotalMonths - (targetYear * 12);
-  const targetMonthStr = `${targetYear}-${String(targetM).padStart(2, '0')}`;
+  let matchedMonth = endMonthStr;
+  if (monthsBack > 0) {
+    const targetTotalMonths = monthToTotalMonths(endMonthStr) - monthsBack;
+    const targetYear = Math.floor((targetTotalMonths - 1) / 12);
+    const targetM = targetTotalMonths - (targetYear * 12);
+    const targetMonthStr = `${targetYear}-${String(targetM).padStart(2, '0')}`;
 
-  const filterId = `SUBCAT_${subName}`;
-  const inceptionMonth = allMonths.find(m => getMarketValueByFilter(filterId, m) > 0);
-  
-  if (!inceptionMonth || targetMonthStr < inceptionMonth) {
-    return null;
+    const filterId = `SUBCAT_${subName}`;
+    const inceptionMonth = allMonths.find(m => getMarketValueByFilter(filterId, m) > 0);
+    
+    if (!inceptionMonth || targetMonthStr < inceptionMonth) {
+      return null;
+    }
+    matchedMonth = allMonths.filter(m => m <= targetMonthStr).pop() || inceptionMonth;
   }
 
-  let matchedMonth = allMonths.filter(m => m <= targetMonthStr).pop() || inceptionMonth;
+  const subVal = getMarketValueByFilter(`SUBCAT_${subName}`, matchedMonth) || 0;
+  const totalVal = getMarketValueByFilter('ALL_PORTFOLIO', matchedMonth) || 0;
+  const sharePct = totalVal > 0 ? (subVal / totalVal) * 100 : 0;
+
   return {
-    value: getMarketValueByFilter(filterId, matchedMonth),
+    value: subVal,
+    sharePct: sharePct,
     monthLabel: matchedMonth
   };
 }
@@ -1389,34 +1397,35 @@ function renderSubCatMultiPeriodValueTable(targetMonth) {
   }
 
   uniqueSubs.forEach(subName => {
-    const filterId = `SUBCAT_${subName}`;
-    const currentVal = getMarketValueByFilter(filterId, targetMonth) || 0;
-    
-    const val5Y = getSubCatMarketValueBack(subName, targetMonth, 60);
-    const val3Y = getSubCatMarketValueBack(subName, targetMonth, 36);
-    const val1Y = getSubCatMarketValueBack(subName, targetMonth, 12);
+    const currData = getSubCatAllocationData(subName, targetMonth, 0);
+    const data1Y = getSubCatAllocationData(subName, targetMonth, 12);
+    const data2Y = getSubCatAllocationData(subName, targetMonth, 24);
+    const data3Y = getSubCatAllocationData(subName, targetMonth, 36);
 
-    // คำนวณผลต่าง (บาท) และ % เติบโตเฉลี่ยต่อปี (CAGR / Annualized Rate)
-    const formatDiffCell = (item, yearsBack) => {
-      if (!item || item.value === null) return `<span class="text-slate-300 font-normal">N/A</span>`;
+    const currPct = currData ? currData.sharePct : 0;
+    const currVal = currData ? currData.value : 0;
+    const currentCell = `
+      <div class="font-mono text-sm font-black text-blue-700">${currPct.toFixed(2)}%</div>
+      <div class="font-mono text-[10px] text-slate-500 font-semibold">฿${formatNumber(currVal)}</div>
+    `;
+
+    const formatDiffCell = (item, newerItem) => {
+      if (!item) return `<span class="text-slate-300 font-normal">N/A</span>`;
       
-      const baseVal = item.value;
-      const diff = currentVal - baseVal;
-      
-      let annualPct = 0;
-      if (baseVal > 0 && currentVal > 0) {
-        annualPct = (Math.pow(currentVal / baseVal, 1 / yearsBack) - 1) * 100;
-      } else if (baseVal > 0) {
-        annualPct = ((currentVal - baseVal) / baseVal / yearsBack) * 100;
+      const pct = item.sharePct;
+      let diffHtml = '';
+
+      if (newerItem) {
+        const diffPctPoint = newerItem.sharePct - pct;
+        const isPos = diffPctPoint >= 0;
+        const sign = isPos ? '+' : '';
+        const colorClass = isPos ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold';
+        diffHtml = `<div class="font-mono text-[10px] ${colorClass}">${sign}${diffPctPoint.toFixed(2)}%pt</div>`;
       }
 
-      const isPos = diff >= 0;
-      const sign = isPos ? '+' : '';
-      const colorClass = isPos ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold';
-
       return `
-        <div class="font-mono ${colorClass}">${sign}${formatNumber(diff)} บ.</div>
-        <div class="font-mono text-[10px] ${colorClass}">${sign}${annualPct.toFixed(2)}%/ปี</div>
+        <div class="font-mono font-bold text-slate-800">${pct.toFixed(2)}%</div>
+        ${diffHtml}
         <div class="text-[9px] text-slate-400 font-normal mt-0.5">(${item.monthLabel})</div>
       `;
     };
@@ -1424,10 +1433,10 @@ function renderSubCatMultiPeriodValueTable(targetMonth) {
     tbody.innerHTML += `
       <tr class="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
         <td class="p-3 font-bold text-slate-800">${escapeHtml(subName)}</td>
-        <td class="p-3 text-right font-mono">${formatDiffCell(val5Y, 5)}</td>
-        <td class="p-3 text-right font-mono">${formatDiffCell(val3Y, 3)}</td>
-        <td class="p-3 text-right font-mono">${formatDiffCell(val1Y, 1)}</td>
-        <td class="p-3 text-right font-mono font-bold text-blue-700 bg-blue-50/30">฿${formatNumber(currentVal)}</td>
+        <td class="p-3 text-right font-mono bg-blue-50/30">${currentCell}</td>
+        <td class="p-3 text-right font-mono">${formatDiffCell(data1Y, currData)}</td>
+        <td class="p-3 text-right font-mono">${formatDiffCell(data2Y, data1Y)}</td>
+        <td class="p-3 text-right font-mono">${formatDiffCell(data3Y, data2Y)}</td>
       </tr>`;
   });
 }
