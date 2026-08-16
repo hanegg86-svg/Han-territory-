@@ -1396,15 +1396,15 @@ function calculateAllocation(shouldSaveState = false) {
     const data2Y = getSubCatAllocationData(subName, targetMonth, 24);
     const data3Y = getSubCatAllocationData(subName, targetMonth, 36);
 
-    // ฟังก์ชันช่วยสร้างการแสดงผล % สัดส่วน และ %pt เทียบกับอดีต (คอลัมน์ด้านขวาของตัวมันเอง)
-    const formatAllocCell = (item, olderItem, isCurrent = false) => {
+    // ฟังก์ชันช่วยแสดงผลต่าง %pt โดยคำนวณ (ค่ารอบปัจจุบัน - ค่ารอบอดีตขวามือ) แล้วแสดงที่ช่องปัจจุบัน/ใหม่กว่า
+    const renderCellContent = (item, olderItem, isCurrent = false) => {
       if (!item) return `<span class="text-slate-300 font-normal">N/A</span>`;
       
       const pct = item.sharePct;
       let diffHtml = '';
 
       if (olderItem) {
-        const diffPctPoint = pct - olderItem.sharePct; // นำค่าปัจจุบัน/ใหม่กว่า ลบด้วย ค่าในอดีต
+        const diffPctPoint = pct - olderItem.sharePct; // ค่าในช่องนี้ ลบด้วย ค่าอดีตทางขวา
         const isPos = diffPctPoint >= 0;
         const sign = isPos ? '+' : '';
         const colorClass = isPos ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold';
@@ -1429,13 +1429,14 @@ function calculateAllocation(shouldSaveState = false) {
     tbody.innerHTML += `
       <tr class="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
         <td class="p-3 font-bold text-slate-800">${escapeHtml(subName)}</td>
-        <td class="p-3 text-right font-mono bg-blue-50/30">${formatAllocCell(currData, data1Y, true)}</td>
-        <td class="p-3 text-right font-mono">${formatAllocCell(data1Y, data2Y)}</td>
-        <td class="p-3 text-right font-mono">${formatAllocCell(data2Y, data3Y)}</td>
-        <td class="p-3 text-right font-mono">${formatAllocCell(data3Y, null)}</td>
+        <td class="p-3 text-right font-mono bg-blue-50/30">${renderCellContent(currData, data1Y, true)}</td>
+        <td class="p-3 text-right font-mono">${renderCellContent(data1Y, data2Y)}</td>
+        <td class="p-3 text-right font-mono">${renderCellContent(data2Y, data3Y)}</td>
+        <td class="p-3 text-right font-mono">${renderCellContent(data3Y, null)}</td>
       </tr>`;
   });
 }
+
 
 
 function renderPortfolioTrendChart(monthsArray) {
