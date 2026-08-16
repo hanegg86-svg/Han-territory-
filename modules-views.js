@@ -1341,7 +1341,7 @@ function calculateAllocation(shouldSaveState = false) {
     });
   }
 
-  // --- คำนวณและแสดงตารางผลตอบแทนย้อนหลัง 1 ปี ของแต่ละประเภทย่อย ---
+  // --- คำนวณและแสดงตารางผลตอบแทนย้อนหลัง 1 ปี ของแต่ละประเภทย่อย (แก้ไขบั๊กการแสดงสีและเครื่องหมาย + -) ---
   const subCat1YBody = document.getElementById('subcat-1y-returns-body');
   if (subCat1YBody) {
     subCat1YBody.innerHTML = '';
@@ -1363,10 +1363,16 @@ function calculateAllocation(shouldSaveState = false) {
       let profitHtml = '<span class="text-slate-400">-</span>';
       
       if (return1YPct !== null && !isNaN(return1YPct) && isFinite(return1YPct)) {
-        const isPos = return1YPct >= 0;
-        const colorClass = isPos ? 'text-emerald-600' : 'text-rose-600';
-        pctHtml = `<span class="font-mono font-bold ${colorClass}">${isPos ? '+' : ''}${return1YPct.toFixed(2)}%</span>`;
-        profitHtml = `<span class="font-mono font-bold ${colorClass}">${isPos ? '+' : ''}${formatNumber(profit1Y)}</span>`;
+        // เช็กสถานะกำไร/ขาดทุนจาก profit1Y เพื่อกำหนดเครื่องหมายและสีให้ถูกต้อง
+        const isProfitPos = profit1Y >= 0;
+        const profitColorClass = isProfitPos ? 'text-emerald-600' : 'text-rose-600';
+        const profitSign = isProfitPos ? '+' : '';
+        profitHtml = `<span class="font-mono font-bold ${profitColorClass}">${profitSign}${formatNumber(profit1Y)}</span>`;
+
+        const isPctPos = return1YPct >= 0;
+        const pctColorClass = isPctPos ? 'text-emerald-600' : 'text-rose-600';
+        const pctSign = isPctPos ? '+' : '';
+        pctHtml = `<span class="font-mono font-bold ${pctColorClass}">${pctSign}${return1YPct.toFixed(2)}%</span>`;
       }
       
       subCat1YBody.innerHTML += `
