@@ -598,7 +598,7 @@
         <div class="flex items-center space-x-3">
           <div class="p-2.5 bg-blue-600 text-white rounded-lg shadow-md"><i class="fa-solid fa-wand-magic-sparkles text-lg"></i></div>
           <div>
-            <h4 class="text-sm font-bold text-slate-800">สแกนอ่าน NAV / พอร์ต ด้วย Gemini 3.1 Flash-Lite</h4>
+            <h4 class="text-sm font-bold text-slate-800">สแกนอ่าน NAV / พอร์ต ด้วย Gemini 3.5 Flash-Lite</h4>
             <p class="text-xs text-slate-500">รองรับสแกนภาพกองทุนทั่วไป และภาพพอร์ตหุ้น (รวมเงินสด+หุ้นให้อัตโนมัติ)</p>
           </div>
         </div>
@@ -762,10 +762,19 @@
     <i class="fa-solid fa-circle-check mr-2"></i> <span id="toast-message">Success</span>
   </div>
 
-  <!-- JavaScript Modules (เรียกใช้ตามลำดับ Dependencies) -->
+  <!-- JavaScript Modules (เรียงลำดับตาม Dependencies) -->
   <script src="./config-store.js"></script>
   <script src="./api-gemini.js"></script>
-  <script src="./modules-views.js"></script>
+
+  <!-- Modules ย่อยใน Root Folder -->
+  <script src="./setup.js"></script>
+  <script src="./entry.js"></script>
+  <script src="./compare.js"></script>
+  <script src="./charts.js"></script>
+  <script src="./allocation.js"></script>
+  <script src="./planning.js"></script>
+  <script src="./transactions.js"></script>
+
   <script src="./app.js"></script>
 </body>
 </html>

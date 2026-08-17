@@ -1,16 +1,22 @@
-// อัปเดตเวอร์ชันเป็น v3.7.4 เพื่อบังคับเคลียร์ Cache เก่าในเบราว์เซอร์
-const CACHE_NAME = 'wealth-tracker-v3.7.4';
+// อัปเดตเวอร์ชันเป็น v3.7.5 เพื่อบังคับเคลียร์ Cache เก่าในเบราว์เซอร์
+const CACHE_NAME = 'wealth-tracker-v3.7.5';
 
-// รายการไฟล์ทั้งหมดที่ต้องการให้ Service Worker ทำการ Caching ไว้สำหรับ Offline Mode
+// รายการไฟล์ทั้งหมดใน Root Folder ที่ต้องการให้ Service Worker ทำการ Caching ไว้สำหรับ Offline Mode
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './icon.png',
-  // JS Modules ทั้ง 4 ไฟล์
   './config-store.js',
   './api-gemini.js',
-  './modules-views.js',
+  // รายการไฟล์ย่อยทั้งหมดใน Root Folder
+  './setup.js',
+  './entry.js',
+  './compare.js',
+  './charts.js',
+  './allocation.js',
+  './planning.js',
+  './transactions.js',
   './app.js',
   // External Libraries
   'https://cdn.tailwindcss.com',
