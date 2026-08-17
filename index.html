@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Pro Wealth Tracker PWA</title>
 
-  <!-- PWA Meta Tags -->
   <link rel="manifest" href="./manifest.json" />
   <meta name="theme-color" content="#2563eb" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -14,7 +13,6 @@
   <link rel="icon" type="image/png" href="./icon.png" />
   <link rel="apple-touch-icon" href="./icon.png" />
 
-  <!-- Tailwind & FontAwesome & Chart.js & SheetJS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -55,7 +53,6 @@
 <body class="bg-slate-50 p-2 md:p-6 font-sans text-slate-800 pb-24">
   <div class="max-w-6xl mx-auto space-y-6">
 
-    <!-- PWA Installation Prompt Banner -->
     <div id="pwa-install-banner" class="hidden bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 rounded-2xl shadow-lg flex justify-between items-center">
       <div class="flex items-center space-x-3">
         <i class="fa-solid fa-mobile-screen-button text-2xl"></i>
@@ -69,7 +66,6 @@
       </button>
     </div>
 
-    <!-- Header & Tab Menu -->
     <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
       <div class="flex items-center space-x-4">
         <div class="p-3 bg-blue-600 rounded-xl text-white shadow-lg shadow-blue-200">
@@ -106,7 +102,6 @@
       </div>
     </div>
 
-    <!-- Empty State Warning -->
     <div id="empty-state-warning" class="hidden bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl flex items-start space-x-3">
       <i class="fa-solid fa-triangle-exclamation mt-1"></i>
       <div>
@@ -115,7 +110,6 @@
       </div>
     </div>
 
-    <!-- TAB 1: COMPARE DASHBOARD -->
     <div id="tab-compare" class="tab-content hidden space-y-10">
       <div class="space-y-6">
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
@@ -218,7 +212,6 @@
       </div>
     </div>
 
-    <!-- TAB 2: CHARTS ANALYSIS & PERFORMANCE -->
     <div id="tab-charts" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
         <div>
@@ -277,7 +270,6 @@
       </div>
     </div>
 
-    <!-- TAB 3: ASSET ALLOCATION TARGETS & LINE CHART TRENDS -->
     <div id="tab-allocation" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4 mb-4">
@@ -358,7 +350,17 @@
           </div>
         </div>
 
-        <!-- ตารางสัดส่วนจัดสรรพอร์ตย้อนหลัง 1-3 ปี -->
+        <div class="mt-6 border border-slate-200 rounded-xl p-5 bg-white shadow-sm space-y-3">
+          <div class="flex items-center space-x-2 border-b border-slate-100 pb-2">
+            <div class="text-blue-600 text-sm"><i class="fa-solid fa-chart-bar text-md"></i></div>
+            <h3 class="font-bold text-slate-900 text-sm">วิวัฒนาการการจัดสรรพอร์ต (4-Year Trend)</h3>
+          </div>
+          <p class="text-xs text-slate-500">กราฟเปรียบเทียบสัดส่วนสินทรัพย์แนวนอนสะสม 100% ย้อนหลัง 4 ปี</p>
+          <div class="relative h-[260px] w-full pt-2">
+            <canvas id="historicalAllocChart"></canvas>
+          </div>
+        </div>
+
         <div class="mt-6 border border-slate-200 rounded-xl p-5 bg-white shadow-sm space-y-4">
           <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
             <div>
@@ -391,7 +393,6 @@
       </div>
     </div>
 
-    <!-- TAB 4: RETIREMENT SIMULATOR -->
     <div id="tab-planning" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <h2 class="text-xl font-bold text-slate-900 mb-1">เครื่องจำลองภาพวันเกษียณ (Retirement Simulator)</h2>
@@ -545,7 +546,6 @@
       </div>
     </div>
 
-    <!-- TAB 5: TRANSACTION LOG -->
     <div id="tab-transactions" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <h2 class="text-xl font-bold text-slate-900 mb-1">บันทึกประวัติการซื้อขายสินทรัพย์</h2>
@@ -603,7 +603,6 @@
       </div>
     </div>
 
-    <!-- TAB 6: ENTRY FORM WITH GEMINI AI OCR & DYNAMIC NAV -->
     <div id="tab-entry" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
@@ -671,7 +670,6 @@
       </div>
     </div>
 
-    <!-- TAB 7: SETTINGS & GEMINI API KEY SETUP -->
     <div id="tab-setup" class="tab-content hidden space-y-6">
       
       <div class="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-md border border-slate-800 space-y-4">
@@ -775,12 +773,10 @@
 
   </div>
 
-  <!-- Global Toast -->
   <div id="global-toast" class="toast">
     <i class="fa-solid fa-circle-check mr-2"></i> <span id="toast-message">Success</span>
   </div>
 
-  <!-- JavaScript Modules -->
   <script src="./config-store.js"></script>
   <script src="./api-gemini.js"></script>
   <script src="./setup.js"></script>
