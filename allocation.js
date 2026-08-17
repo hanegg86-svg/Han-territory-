@@ -539,11 +539,14 @@ function renderHistoricalAllocationTable() {
     });
 
     const currPct = pcts[0];
-    const prevPct = pcts.slice(1).find(p => p !== null);
+    // ดึงค่า % ย้อนหลัง 3 ปี (idx 3 ใน array pcts) หากไม่มีให้ค้นหาปีย้อนหลังที่สุดที่มีข้อมูล
+    const year3Pct = pcts[3] !== undefined && pcts[3] !== null 
+      ? pcts[3] 
+      : [...pcts].reverse().find(p => p !== null && p !== currPct);
 
     let trendBadge = `<span class="text-slate-300">-</span>`;
-    if (currPct !== null && prevPct !== undefined && prevPct !== null) {
-      const diff = currPct - prevPct;
+    if (currPct !== null && year3Pct !== undefined && year3Pct !== null) {
+      const diff = currPct - year3Pct;
       if (Math.abs(diff) < 0.5) {
         trendBadge = `<span class="text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-minus mr-1"></i>คงที่</span>`;
       } else if (diff > 0) {
