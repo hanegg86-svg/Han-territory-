@@ -346,6 +346,7 @@ function renderPortfolioTrendChart(monthsArray) {
   });
 }
 
+// ฟังก์ชันวาดกราฟแท่งแนวตั้งสะสม 100% (Vertical 100% Stacked Bar Chart)
 function renderHistoricalAllocationChart() {
   const canvas = document.getElementById('historicalAllocChart');
   if(!canvas) return;
@@ -353,8 +354,9 @@ function renderHistoricalAllocationChart() {
   if (historicalAllocChart) historicalAllocChart.destroy();
 
   const currentYear = new Date().getFullYear();
-  const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
-  const yLabels = years.map((y, idx) => idx === 0 ? `ปีปัจจุบัน (${y})` : `ย้อนหลัง ${idx} ปี (${y})`);
+  // เรียงปีจากอดีตไปปัจจุบัน (ซ้าย -> ขวา) บนแกน X
+  const years = [currentYear - 3, currentYear - 2, currentYear - 1, currentYear];
+  const xLabels = years.map((y, idx) => idx === 3 ? `ปีปัจจุบัน (${y})` : `ย้อนหลัง ${3 - idx} ปี (${y})`);
 
   let yearTotals = {};
   let yearSubTotals = {};
@@ -418,11 +420,11 @@ function renderHistoricalAllocationChart() {
   historicalAllocChart = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: yLabels,
+      labels: xLabels,
       datasets: datasets
     },
     options: {
-      indexAxis: 'y',
+      indexAxis: 'x', // กำหนดเป็นกราฟแท่งแนวตั้ง
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
@@ -441,13 +443,13 @@ function renderHistoricalAllocationChart() {
       scales: {
         x: {
           stacked: true,
-          min: 0,
-          max: 100,
-          ticks: { callback: v => v + '%' }
+          ticks: { font: { weight: 'bold', size: 11 } }
         },
         y: {
           stacked: true,
-          ticks: { font: { weight: 'bold', size: 11 } }
+          min: 0,
+          max: 100,
+          ticks: { callback: v => v + '%' }
         }
       }
     }
