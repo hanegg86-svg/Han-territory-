@@ -166,10 +166,11 @@ function calculateAllocation(shouldSaveState = false) {
 
       if(f.subCategories && f.subCategories.length > 0) {
         f.subCategories.forEach(sub => {
-          if (selectedSubCatsForCompare.includes(sub.name)) {
-            if(!currentSubTotals[sub.name]) currentSubTotals[sub.name] = 0;
+          const sName = (sub.name || '').trim();
+          if (selectedSubCatsForCompare.includes(sName) || selectedSubCatsForCompare.includes(sub.name)) {
+            if(!currentSubTotals[sName]) currentSubTotals[sName] = 0;
             const portion = fundVal * (sub.weight / 100);
-            currentSubTotals[sub.name] += portion;
+            currentSubTotals[sName] += portion;
             totalWealthInGroup += portion;
           }
         });
@@ -192,7 +193,7 @@ function calculateAllocation(shouldSaveState = false) {
   let underweightAdvice = [];
 
   selectedSubCatsForCompare.forEach(subName => {
-    const cVal = currentSubTotals[subName] || 0;
+    const cVal = currentSubTotals[subName.trim()] || currentSubTotals[subName] || 0;
     const targetPct = targets[subName] || 0;
     const currentPct = totalWealthInGroup > 0 ? (cVal / totalWealthInGroup) * 100 : 0;
     
@@ -246,7 +247,7 @@ function calculateAllocation(shouldSaveState = false) {
     if (allocChart) allocChart.destroy();
     
     const donutLabels = selectedSubCatsForCompare;
-    const actualData = selectedSubCatsForCompare.map(sub => totalWealthInGroup > 0 ? ((currentSubTotals[sub] || 0) / totalWealthInGroup) * 100 : 0);
+    const actualData = selectedSubCatsForCompare.map(sub => totalWealthInGroup > 0 ? (((currentSubTotals[sub.trim()] || currentSubTotals[sub]) || 0) / totalWealthInGroup) * 100 : 0);
     const targetData = selectedSubCatsForCompare.map(sub => targets[sub] || 0);
 
     allocChart = new Chart(ctxDonut, {
@@ -288,6 +289,7 @@ function calculateAllocation(shouldSaveState = false) {
 
   const sortedMonths = Object.keys(db.records || {}).sort();
   renderPortfolioTrendChart(sortedMonths);
+  renderHistoricalAllocationTable();
 }
 
 function renderPortfolioTrendChart(monthsArray) {
@@ -305,9 +307,9 @@ function renderPortfolioTrendChart(monthsArray) {
       (db.funds || []).forEach(f => {
         const val = (db.records && db.records[m]) ? db.records[m][f.id] || 0 : 0;
         if (f.subCategories && f.subCategories.length > 0) {
-          const match = f.subCategories.find(s => s.name.trim() === subName);
+          const match = f.subCategories.find(s => s.name.trim() === subName.trim());
           if(match) monthVal += val * (match.weight / 100);
-        } else if (subName === 'ยังไม่ได้ระบุประเภทย่อย') {
+        } else if (subName.trim() === 'ยังไม่ได้ระบุประเภทย่อย') {
           monthVal += val;
         }
       });
@@ -338,5 +340,107 @@ function renderPortfolioTrendChart(monthsArray) {
       plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 6, font: { weight: 'bold', size: 11 } } } },
       scales: { y: { ticks: { callback: function(value) { if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'; if (value >= 1000) return (value / 1000).toFixed(0) + 'k'; return value; } } } }
     }
+  });
+}
+
+function renderHistoricalAllocationTable() {
+  const tbody = document.getElementById('alloc-history-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+
+  years.forEach((y, idx) => {
+    const headEl = document.getElementById(`alloc-head-year-${idx}`);
+    if (headEl) {
+      headEl.innerText = idx === 0 ? `ปีปัจจุบัน (${y})` : `ย้อนหลัง ${idx} ปี (${y})`;
+    }
+  });
+
+  let yearTotals = {};
+  let yearSubTotals = {};
+
+  years.forEach(y => {
+    yearTotals[y] = 0;
+    yearSubTotals[y] = {};
+
+    const monthsInYear = Object.keys(db.records || {}).filter(m => m.startsWith(y.toString())).sort();
+    if (monthsInYear.length > 0) {
+      const lastMonth = monthsInYear[monthsInYear.length - 1];
+      const monthData = db.records[lastMonth] || {};
+
+      (db.funds || []).forEach(f => {
+        const val = monthData[f.id] || 0;
+        if (val > 0) {
+          if (f.subCategories && f.subCategories.length > 0) {
+            f.subCategories.forEach(s => {
+              const sName = (s.name || '').trim();
+              const portion = val * ((s.weight || 0) / 100);
+              yearSubTotals[y][sName] = (yearSubTotals[y][sName] || 0) + portion;
+              yearTotals[y] += portion;
+            });
+          } else {
+            const defaultSub = 'ยังไม่ได้ระบุประเภทย่อย';
+            yearSubTotals[y][defaultSub] = (yearSubTotals[y][defaultSub] || 0) + val;
+            yearTotals[y] += val;
+          }
+        }
+      });
+    }
+  });
+
+  const inputs = document.querySelectorAll('.subcat-target-input');
+  let targets = {};
+  inputs.forEach(input => {
+    const subName = input.getAttribute('data-subname');
+    if (subName) targets[subName.trim()] = parseFloat(input.value) || 0;
+  });
+
+  let subCatsToDisplay = selectedSubCatsForCompare && selectedSubCatsForCompare.length > 0 
+    ? selectedSubCatsForCompare 
+    : getAllUniqueSubCategories();
+
+  subCatsToDisplay.forEach(subNameRaw => {
+    const subName = subNameRaw.trim();
+    const safeSub = escapeHtml(subName);
+    const targetPct = targets[subName] !== undefined ? targets[subName] : ((db.allocationSettings || {})[subName] || 0);
+
+    let rowHtml = `
+      <tr class="border-b border-slate-100 hover:bg-slate-50">
+        <td class="p-3 font-bold text-slate-800">${safeSub}</td>
+        <td class="p-3 text-right font-mono text-blue-600 font-bold">${targetPct}%</td>
+    `;
+
+    let pcts = [];
+    years.forEach((y, idx) => {
+      const total = yearTotals[y] || 0;
+      const subVal = (yearSubTotals[y] && yearSubTotals[y][subName]) || 0;
+      const pct = total > 0 ? (subVal / total) * 100 : null;
+      pcts.push(pct);
+
+      const cellBg = idx === 0 ? 'bg-blue-50/40 font-bold text-slate-900' : '';
+      const textDisplay = pct !== null ? `${pct.toFixed(1)}%` : '<span class="text-slate-300 italic">N/A</span>';
+
+      rowHtml += `<td class="p-3 text-right font-mono ${cellBg}">${textDisplay}</td>`;
+    });
+
+    const currPct = pcts[0];
+    const prevPct = pcts.slice(1).find(p => p !== null);
+
+    let trendBadge = `<span class="text-slate-300">-</span>`;
+    if (currPct !== null && prevPct !== undefined && prevPct !== null) {
+      const diff = currPct - prevPct;
+      if (Math.abs(diff) < 0.5) {
+        trendBadge = `<span class="text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-minus mr-1"></i>คงที่</span>`;
+      } else if (diff > 0) {
+        trendBadge = `<span class="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-arrow-up mr-1"></i>+${diff.toFixed(1)}%</span>`;
+      } else {
+        trendBadge = `<span class="text-rose-700 bg-rose-100 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-arrow-down mr-1"></i>${diff.toFixed(1)}%</span>`;
+      }
+    }
+
+    rowHtml += `<td class="p-3 text-center">${trendBadge}</td></tr>`;
+    tbody.innerHTML += rowHtml;
   });
 }
