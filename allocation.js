@@ -354,7 +354,6 @@ function renderHistoricalAllocationChart() {
   if (historicalAllocChart) historicalAllocChart.destroy();
 
   const currentYear = new Date().getFullYear();
-  // เรียงปีจากอดีตไปปัจจุบัน (ซ้าย -> ขวา) บนแกน X
   const years = [currentYear - 3, currentYear - 2, currentYear - 1, currentYear];
   const xLabels = years.map((y, idx) => idx === 3 ? `ปีปัจจุบัน (${y})` : `ย้อนหลัง ${3 - idx} ปี (${y})`);
 
@@ -424,7 +423,7 @@ function renderHistoricalAllocationChart() {
       datasets: datasets
     },
     options: {
-      indexAxis: 'x', // กำหนดเป็นกราฟแท่งแนวตั้ง
+      indexAxis: 'x',
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
@@ -462,6 +461,7 @@ function renderHistoricalAllocationTable() {
   tbody.innerHTML = '';
 
   const currentYear = new Date().getFullYear();
+  // index 0: ปีปัจจุบัน, 1: ย้อนหลัง 1 ปี, 2: ย้อนหลัง 2 ปี, 3: ย้อนหลัง 3 ปี
   const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
 
   years.forEach((y, idx) => {
@@ -539,14 +539,19 @@ function renderHistoricalAllocationTable() {
     });
 
     const currPct = pcts[0];
-    // ดึงค่า % ย้อนหลัง 3 ปี (idx 3 ใน array pcts) หากไม่มีให้ค้นหาปีย้อนหลังที่สุดที่มีข้อมูล
-    const year3Pct = pcts[3] !== undefined && pcts[3] !== null 
-      ? pcts[3] 
-      : [...pcts].reverse().find(p => p !== null && p !== currPct);
+    
+    // ค้นหาค่า % ย้อนหลังที่เก่าที่สุดที่มีข้อมูลจริง (วนลูปจาก ย้อนหลัง 3 ปี -> 2 ปี -> 1 ปี)
+    let comparePct = null;
+    for (let i = 3; i >= 1; i--) {
+      if (pcts[i] !== null && pcts[i] !== undefined) {
+        comparePct = pcts[i];
+        break; // เมื่อพบปีที่เก่าที่สุดที่มีข้อมูล ให้หยุดวนลูปเพื่อนำค่านั้นมาใช้
+      }
+    }
 
     let trendBadge = `<span class="text-slate-300">-</span>`;
-    if (currPct !== null && year3Pct !== undefined && year3Pct !== null) {
-      const diff = currPct - year3Pct;
+    if (currPct !== null && comparePct !== null) {
+      const diff = currPct - comparePct;
       if (Math.abs(diff) < 0.5) {
         trendBadge = `<span class="text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-minus mr-1"></i>คงที่</span>`;
       } else if (diff > 0) {
