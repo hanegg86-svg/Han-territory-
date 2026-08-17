@@ -241,10 +241,8 @@
           </div>
         </div>
 
-        <!-- การ์ดสรุปผลต่างช่วงเวลา, มูลค่าปัจจุบัน & ต้นทุน -->
         <div id="chart-latest-summary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"></div>
 
-        <!-- การ์ดสรุปผลตอบแทนย้อนหลัง (คำนวณแบบรวมต้นทุนสะสม) -->
         <div class="space-y-2">
           <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i> สรุปผลตอบแทนย้อนหลังตามระยะเวลา (คำนวณรวมต้นทุน)</h3>
           <div id="chart-period-returns" class="grid grid-cols-2 sm:grid-cols-4 gap-4"></div>
@@ -359,6 +357,37 @@
             <div id="alloc-advice-box" class="text-xs font-medium text-blue-800 space-y-1.5 leading-relaxed"></div>
           </div>
         </div>
+
+        <!-- ตารางสัดส่วนจัดสรรพอร์ตย้อนหลัง 1-3 ปี -->
+        <div class="mt-6 border border-slate-200 rounded-xl p-5 bg-white shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i class="fa-solid fa-clock-rotate-left text-blue-600"></i>
+                สัดส่วนจัดสรรพอร์ตย้อนหลัง (Historical Allocation Comparison)
+              </h3>
+              <p class="text-xs text-slate-500 mt-0.5">เปรียบเทียบสัดส่วนสินทรัพย์ (%) ณ สิ้นปีปัจจุบัน ย้อนหลัง 1 ปี, 2 ปี และ 3 ปี</p>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left border-collapse bg-white text-xs">
+              <thead>
+                <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-extrabold">
+                  <th class="p-3">ประเภทย่อย (Asset Class)</th>
+                  <th class="p-3 text-right text-blue-700">เป้าหมาย (Target)</th>
+                  <th class="p-3 text-right bg-blue-50/60 text-slate-900" id="alloc-head-year-0">ปีปัจจุบัน</th>
+                  <th class="p-3 text-right" id="alloc-head-year-1">ย้อนหลัง 1 ปี</th>
+                  <th class="p-3 text-right" id="alloc-head-year-2">ย้อนหลัง 2 ปี</th>
+                  <th class="p-3 text-right" id="alloc-head-year-3">ย้อนหลัง 3 ปี</th>
+                  <th class="p-3 text-center">แนวโน้ม 3 ปี</th>
+                </tr>
+              </thead>
+              <tbody id="alloc-history-table-body" class="font-semibold text-slate-700"></tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -395,7 +424,6 @@
               <input type="number" step="0.1" id="sim-inflation" value="2.5" oninput="calculateRetirement(true)" class="w-full p-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none focus:border-blue-500">
             </div>
 
-            <!-- เลือกไลฟ์สไตล์หลังเกษียณ -->
             <div class="border-t border-slate-200 pt-3">
               <label class="block text-xs font-bold text-slate-600 mb-2">เลือกไลฟ์สไตล์หลังเกษียณ</label>
               <div class="grid grid-cols-1 gap-2">
@@ -460,7 +488,6 @@
               </div>
             </div>
 
-            <!-- การ์ดเปรียบเทียบเป้าหมายออมเพิ่ม -->
             <div class="bg-white p-5 rounded-2xl border-2 border-slate-200 shadow-sm space-y-4">
               <div class="flex justify-between items-center border-b border-slate-100 pb-2">
                 <p class="text-xs font-bold text-slate-700 uppercase tracking-wide">
@@ -470,25 +497,21 @@
               </div>
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <!-- 1. เป้าหมายที่ต้องออมเพิ่มเดิม -->
                 <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
                   <p class="text-[11px] font-bold text-slate-500 mb-1">เป้าหมายที่ต้องออมเพิ่มต่อเดือน</p>
                   <h5 id="sim-target-monthly-val" class="text-lg font-black text-blue-600">฿0.00</h5>
                 </div>
 
-                <!-- 2. ยอดออมเฉลี่ย (ปีนี้) -->
                 <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
                   <p id="sim-prev-month-label" class="text-[11px] font-bold text-slate-500 mb-1">ยอดออมเฉลี่ย (ปีนี้)</p>
                   <h5 id="sim-prev-month-saved" class="text-lg font-black text-slate-700">฿0.00</h5>
                 </div>
 
-                <!-- 3. เงินที่สะสมเพิ่มได้จริง (เดือนล่าสุด) -->
                 <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
                   <p id="sim-curr-month-label" class="text-[11px] font-bold text-slate-500 mb-1">เงินที่สะสมเพิ่มได้จริง (เดือนล่าสุด)</p>
                   <h5 id="sim-curr-month-saved" class="text-lg font-black text-emerald-600">฿0.00</h5>
                 </div>
 
-                <!-- 4. หลังจากเดือนนี้ ต้องเก็บอีกเดือนละเท่าไหร่ -->
                 <div class="bg-blue-50/60 p-3.5 rounded-xl border border-blue-200">
                   <p class="text-[11px] font-bold text-blue-800 mb-1">หลังจากเดือนนี้ ต้องเก็บอีกเดือนละ</p>
                   <h5 id="sim-next-monthly-needed" class="text-lg font-black text-blue-900">฿0.00</h5>
@@ -496,7 +519,6 @@
                 </div>
               </div>
 
-              <!-- แถบสรุปสถานะการออมเดือนล่าสุด -->
               <div id="sim-comp-status-badge" class="p-3 rounded-xl text-xs font-bold flex items-center space-x-2 bg-emerald-100 text-emerald-800">
                 <i class="fa-solid fa-circle-check text-emerald-600"></i>
                 <span id="sim-comp-status-text">เดือนล่าสุดออมได้ตามเป้าหมาย</span>
@@ -593,7 +615,6 @@
         </div>
       </div>
 
-      <!-- Gemini AI Image Upload Scanner Section -->
       <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-3 shadow-sm">
         <div class="flex items-center space-x-3">
           <div class="p-2.5 bg-blue-600 text-white rounded-lg shadow-md"><i class="fa-solid fa-wand-magic-sparkles text-lg"></i></div>
@@ -653,7 +674,6 @@
     <!-- TAB 7: SETTINGS & GEMINI API KEY SETUP -->
     <div id="tab-setup" class="tab-content hidden space-y-6">
       
-      <!-- Gemini API Key Configuration Panel -->
       <div class="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-md border border-slate-800 space-y-4">
         <div class="flex items-center space-x-3">
           <div class="p-2 bg-blue-500/20 text-blue-400 rounded-lg"><i class="fa-solid fa-key text-xl"></i></div>
@@ -685,7 +705,6 @@
         <h2 class="text-xl font-bold text-slate-900 mb-1">เพิ่ม/ลบ รายชื่อบัญชีและกองทุน</h2>
         <p class="text-sm text-slate-500 mb-4">เพิ่มชื่อกองทุน พร้อมระบุ <b>รหัสกองทุน (Symbol)</b> เพื่อให้ AI นำมาแมตช์ได้ถูกต้อง</p>
 
-        <!-- Form Input Grid -->
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
           <div class="md:col-span-3">
             <label class="block text-xs font-bold text-slate-600 mb-1">กลุ่มสภาพคล่อง</label>
@@ -718,7 +737,6 @@
         <h3 class="text-lg font-bold text-slate-900 mb-1">จัดการข้อมูล (Data Management)</h3>
         <p class="text-sm text-slate-500 mb-4">สำรองข้อมูล นำเข้าเพื่อใช้งานต่อ หรือส่งออกเป็นไฟล์ตาราง</p>
 
-        <!-- Local Storage Capacity Indicator Bar (Max 5MB) -->
         <div class="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
           <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs font-bold text-slate-700 gap-1">
             <span class="flex items-center space-x-1.5">
@@ -762,11 +780,9 @@
     <i class="fa-solid fa-circle-check mr-2"></i> <span id="toast-message">Success</span>
   </div>
 
-  <!-- JavaScript Modules (เรียงลำดับตาม Dependencies) -->
+  <!-- JavaScript Modules -->
   <script src="./config-store.js"></script>
   <script src="./api-gemini.js"></script>
-
-  <!-- Modules ย่อยใน Root Folder -->
   <script src="./setup.js"></script>
   <script src="./entry.js"></script>
   <script src="./compare.js"></script>

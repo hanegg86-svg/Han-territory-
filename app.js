@@ -74,7 +74,6 @@ function refreshCurrentTab() {
 }
 
 // ================= APP INITIALIZATION =================
-// โหลดข้อมูลและเรนเดอร์หลังจาก DOM พร้อม 100%
 document.addEventListener('DOMContentLoaded', () => {
   loadDB();
   switchTab('tab-compare');
