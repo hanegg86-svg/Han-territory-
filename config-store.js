@@ -10,7 +10,8 @@ let db = {
   records: {},
   transactions: [], 
   planningSettings: {},
-  allocationSettings: {} 
+  allocationSettings: {},
+  passiveIncomeData: {} // ✅ เพิ่มส่วนนี้
 };
 
 let myChart = null;
@@ -36,7 +37,6 @@ function getCurrentMonth() { const d = new Date(); return `${d.getFullYear()}-${
 function formatNumber(num) { return (num || 0).toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 function parseLocalNumber(str) { if(!str) return 0; const v = parseFloat(String(str).replace(/[^0-9.-]+/g, '')); return isNaN(v) ? 0 : v; }
 
-// ✅ ADDED: ฟังก์ชันช่วยทำ Sanitization เพื่อป้องกัน XSS
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)
@@ -103,6 +103,7 @@ function loadDB() {
     if(!db.transactions) db.transactions = [];
     if(!db.planningSettings) db.planningSettings = {};
     if(!db.allocationSettings) db.allocationSettings = {};
+    if(!db.passiveIncomeData) db.passiveIncomeData = {}; // ✅ เพิ่มส่วนนี้
     
     if (db.funds && db.funds.length > 0) {
       db.funds = db.funds.map(f => {
@@ -172,6 +173,7 @@ function restoreFromJson() {
       if(!db.transactions) db.transactions = [];
       if(!db.planningSettings) db.planningSettings = {};
       if(!db.allocationSettings) db.allocationSettings = {};
+      if(!db.passiveIncomeData) db.passiveIncomeData = {}; // ✅ เพิ่มส่วนนี้
       
       if (db.funds && db.funds.length > 0) {
         db.funds = db.funds.map(f => {
@@ -222,8 +224,6 @@ function exportToExcel() {
   });
 
   let txData = [["วันที่ทำรายการ", "ชื่อบัญชี/กองทุน", "ประเภทรายการ", "จำนวนเงิน (บาท)"]];
-  
-  // ✅ FIX: แก้ไข Bug การเรียงลำดับวันที่ธุรกรรม จาก (a.date - a.date) เป็น (a.date - b.date)
   const sortedTx = [...db.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
   
   sortedTx.forEach(t => {
@@ -233,6 +233,13 @@ function exportToExcel() {
     txData.push([t.date, fundName, typeStr, t.amount]);
   });
 
+  // ✅ Export หน้า Passive Income เพิ่มลงในไฟล์ Excel
+  let passData = [["เดือน/ปี", "Active Income", "Expenses", "PF (ส่วนตน)", "PF (นายจ้าง)"]];
+  Object.keys(db.passiveIncomeData || {}).sort().forEach(m => {
+    const item = db.passiveIncomeData[m];
+    passData.push([m, item.activeIncome || 0, item.expenses || 0, item.pfEmployee || 0, item.pfEmployer || 0]);
+  });
+
   const wb = XLSX.utils.book_new();
   const ws1_data = XLSX.utils.aoa_to_sheet(summaryData);
   XLSX.utils.book_append_sheet(wb, ws1_data, "สรุปยอดรายเดือน");
@@ -240,6 +247,8 @@ function exportToExcel() {
   XLSX.utils.book_append_sheet(wb, ws2, "ข้อมูลรายกองทุน");
   const ws3 = XLSX.utils.aoa_to_sheet(txData);
   XLSX.utils.book_append_sheet(wb, ws3, "ประวัติการซื้อขาย");
+  const ws4 = XLSX.utils.aoa_to_sheet(passData);
+  XLSX.utils.book_append_sheet(wb, ws4, "Passive Income");
   
   XLSX.writeFile(wb, "WealthTracker_Export_" + getCurrentMonth() + ".xlsx");
   showToast("Export Excel สำเร็จ!");

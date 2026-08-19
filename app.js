@@ -58,6 +58,7 @@ function switchTab(tabId) {
   if (tabId === 'tab-planning') initPlanningTab();
   if (tabId === 'tab-transactions') initTransactionsTab();
   if (tabId === 'tab-allocation') initAllocationTab();
+  if (tabId === 'tab-passive') initPassiveIncomeTab(); // ✅ เพิ่มบรรทัดนี้
 }
 
 function refreshCurrentTab() {
@@ -70,6 +71,7 @@ function refreshCurrentTab() {
     if (currentTab === 'tab-planning') initPlanningTab();
     if (currentTab === 'tab-transactions') initTransactionsTab();
     if (currentTab === 'tab-allocation') initAllocationTab();
+    if (currentTab === 'tab-passive') initPassiveIncomeTab(); // ✅ เพิ่มบรรทัดนี้
   }
 }
 

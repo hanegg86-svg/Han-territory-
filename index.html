@@ -90,6 +90,10 @@
         <button onclick="switchTab('tab-planning')" id="btn-tab-planning" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
           <i class="fa-solid fa-hourglass-half mr-1"></i>เกษียณ
         </button>
+        <!-- ✅ ปุ่มเมนูแท็บ Passive Income ที่เพิ่มเข้ามา -->
+        <button onclick="switchTab('tab-passive')" id="btn-tab-passive" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
+          <i class="fa-solid fa-coins mr-1"></i>Passive Income
+        </button>
         <button onclick="switchTab('tab-transactions')" id="btn-tab-transactions" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
           <i class="fa-solid fa-list-check mr-1"></i>ประวัติซื้อขาย
         </button>
@@ -110,6 +114,7 @@
       </div>
     </div>
 
+    <!-- TAB COMPARE -->
     <div id="tab-compare" class="tab-content hidden space-y-10">
       <div class="space-y-6">
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
@@ -212,6 +217,7 @@
       </div>
     </div>
 
+    <!-- TAB CHARTS -->
     <div id="tab-charts" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
         <div>
@@ -270,6 +276,7 @@
       </div>
     </div>
 
+    <!-- TAB ALLOCATION -->
     <div id="tab-allocation" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4 mb-4">
@@ -393,6 +400,7 @@
       </div>
     </div>
 
+    <!-- TAB PLANNING -->
     <div id="tab-planning" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <h2 class="text-xl font-bold text-slate-900 mb-1">เครื่องจำลองภาพวันเกษียณ (Retirement Simulator)</h2>
@@ -546,6 +554,100 @@
       </div>
     </div>
 
+    <!-- ✅ TAB PASSIVE INCOME (เพิ่มใหม่) -->
+    <div id="tab-passive" class="tab-content hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900 mb-1">คำนวณ Passive Income รายเดือน</h2>
+            <p class="text-sm text-slate-500">วิเคราะห์กระแสเงินสดและดอกผลจากการลงทุนจากการเปลี่ยนแปลงสินทรัพย์สุทธิ</p>
+          </div>
+          <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+            <label class="text-xs font-bold text-slate-600 whitespace-nowrap"><i class="fa-solid fa-calendar-days mr-1"></i> เลือกรอบเดือน:</label>
+            <select id="passive-month-select" onchange="initPassiveIncomeTab()" class="p-1.5 border border-slate-300 rounded-lg text-xs font-bold outline-none cursor-pointer bg-white min-w-[130px]"></select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-100">
+            <h3 class="font-bold text-slate-700 text-sm border-b border-slate-200 pb-2 flex items-center">
+              <i class="fa-solid fa-pen-to-square mr-2 text-blue-600"></i>ข้อมูลกระแสเงินสดประจำเดือน
+            </h3>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">1. Active Income (รายได้จากการทำงาน)</label>
+              <input type="text" inputmode="decimal" id="pass-active-income" placeholder="0.00"
+                     oninput="calculatePassiveIncome()"
+                     onblur="this.value = formatNumber(parseLocalNumber(this.value))"
+                     class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-bold font-mono text-slate-800 outline-none focus:border-blue-500 bg-white">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">2. Expenses (ค่าใช้จ่ายประจำเดือน)</label>
+              <input type="text" inputmode="decimal" id="pass-expenses" placeholder="0.00"
+                     oninput="calculatePassiveIncome()"
+                     onblur="this.value = formatNumber(parseLocalNumber(this.value))"
+                     class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-bold font-mono text-rose-700 outline-none focus:border-rose-500 bg-white">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">3. เงินเข้า PF (ส่วนของเรา)</label>
+              <input type="text" inputmode="decimal" id="pass-pf-employee" placeholder="0.00"
+                     oninput="calculatePassiveIncome()"
+                     onblur="this.value = formatNumber(parseLocalNumber(this.value))"
+                     class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-bold font-mono text-blue-700 outline-none focus:border-blue-500 bg-white">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">4. เงินเข้า PF (ส่วนนายจ้างสมทบ)</label>
+              <input type="text" inputmode="decimal" id="pass-pf-employer" placeholder="0.00"
+                     oninput="calculatePassiveIncome()"
+                     onblur="this.value = formatNumber(parseLocalNumber(this.value))"
+                     class="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-bold font-mono text-indigo-700 outline-none focus:border-indigo-500 bg-white">
+            </div>
+          </div>
+
+          <div class="lg:col-span-2 space-y-4">
+            <div id="pass-result-card" class="p-5 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg space-y-1">
+              <p class="text-xs text-emerald-100 font-bold uppercase tracking-wide"><i class="fa-solid fa-chart-line mr-1"></i> ผลตอบแทน Passive Income ที่คำนวณได้</p>
+              <h3 id="pass-result-val" class="text-3xl font-black">฿0.00</h3>
+              <p id="pass-ratio-val" class="text-xs text-emerald-100 font-semibold pt-1"></p>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+              <h4 class="font-bold text-xs text-slate-500 uppercase tracking-wide border-b border-slate-100 pb-2">
+                <i class="fa-solid fa-calculator mr-1"></i> แจกแจงองค์ประกอบการคำนวณ
+              </h4>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <span class="text-slate-500 font-bold block mb-1">เงินเก็บที่เพิ่มขึ้น (Δ Wealth)</span>
+                  <span id="pass-wealth-delta-val" class="text-base font-bold text-slate-800">฿0.00</span>
+                  <span id="pass-prev-month-tag" class="block text-[10px] text-slate-400 mt-0.5"></span>
+                </div>
+
+                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <span class="text-slate-500 font-bold block mb-1">สูตรคำนวณที่ใช้</span>
+                  <p class="text-[11px] font-mono font-bold text-slate-700 leading-relaxed">
+                    (เงินเก็บเพิ่มขึ้น) - (Active) - (PF รวม) + (Expenses)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-1.5">
+              <p class="font-bold"><i class="fa-solid fa-lightbulb mr-1 text-amber-500"></i> ทำไมถึงต้องใช้สูตรนี้?</p>
+              <p class="text-slate-600 leading-relaxed">
+                เพราะสินทรัพย์ที่เพิ่มขึ้นจริงในแต่ละเดือน เกิดมาจาก **(Active Income + PF + Passive Income - Expenses)** 
+                ดังนั้น การย้ายข้างสมการจะช่วยให้เราเห็นว่าเงินส่วนที่งอกเงยขึ้นมาจาก **ดอกเบี้ย / เงินปันผล / กำไรส่วนต่างราคา (Capital Gain)** ที่แท้จริงคือเท่าไหร่ครับ
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB TRANSACTIONS -->
     <div id="tab-transactions" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <h2 class="text-xl font-bold text-slate-900 mb-1">บันทึกประวัติการซื้อขายสินทรัพย์</h2>
@@ -603,6 +705,7 @@
       </div>
     </div>
 
+    <!-- TAB ENTRY -->
     <div id="tab-entry" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
@@ -670,6 +773,7 @@
       </div>
     </div>
 
+    <!-- TAB SETUP -->
     <div id="tab-setup" class="tab-content hidden space-y-6">
       
       <div class="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-md border border-slate-800 space-y-4">
@@ -785,6 +889,7 @@
   <script src="./charts.js"></script>
   <script src="./allocation.js"></script>
   <script src="./planning.js"></script>
+  <script src="./passive-income.js"></script> <!-- ✅ นำเข้าไฟล์ใหม่ที่นี่ -->
   <script src="./transactions.js"></script>
 
   <script src="./app.js"></script>
