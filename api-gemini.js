@@ -52,7 +52,7 @@ function updateApiKeyStatusBadge() {
   }
 }
 
-// ================= GEMINI AI OCR SCAN =================
+// ================= GEMINI AI OCR SCAN NAV / PORT =================
 async function processImageWithGemini(event) {
   const files = event.target.files;
   if (!files || files.length === 0) return;
@@ -64,7 +64,7 @@ async function processImageWithGemini(event) {
     return;
   }
 
-  showToast(`กำลังสแกนรูปภาพจำนวน ${files.length} ภาพ ด้วย Gemini 3.5 Flash-Lite AI...`);
+  showToast(`กำลังสแกนรูปภาพจำนวน ${files.length} ภาพ ด้วย Gemini AI...`);
 
   const readFileAsBase64 = (file) => {
     return new Promise((resolve, reject) => {
@@ -121,7 +121,6 @@ async function processImageWithGemini(event) {
 
       let rawText = resData.candidates[0].content.parts[0].text.trim();
       
-      // ล้าง Markdown Block ออกแบบครอบคลุม
       rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const firstBrace = rawText.indexOf('{');
       const lastBrace = rawText.lastIndexOf('}');
@@ -131,7 +130,6 @@ async function processImageWithGemini(event) {
 
       const parsedData = JSON.parse(rawText);
 
-      // 1. สแกนหน้าพอร์ตหุ้น / เงินสด
       if (parsedData.portfolio && (parsedData.portfolio.cash > 0 || parsedData.portfolio.stock > 0)) {
         const cashVal = parseFloat(parsedData.portfolio.cash) || 0;
         const stockVal = parseFloat(parsedData.portfolio.stock) || 0;
@@ -155,7 +153,6 @@ async function processImageWithGemini(event) {
         }
       }
 
-      // 2. สแกนหน้ากองทุน / หุ้นกู้ / ตราสารหนี้
       if (Array.isArray(parsedData.items) && parsedData.items.length > 0) {
         parsedData.items.forEach(item => {
           const scannedCode = (item.symbol || '').toUpperCase().trim();
@@ -167,7 +164,6 @@ async function processImageWithGemini(event) {
               const fName = (f.name || '').toUpperCase().trim();
               if (!fSymbol && !fName) return false;
 
-              // เช็กแมตช์รหัสแบบยืดหยุ่น (แมตช์ทั้งกรณี SGP292A และ SGP292A12)
               return fSymbol === scannedCode || 
                      fName === scannedCode || 
                      scannedCode.startsWith(fSymbol) || 
@@ -200,3 +196,71 @@ async function processImageWithGemini(event) {
     event.target.value = ''; 
   }
 }
+
+// ================= GEMINI AI OCR SCAN PASSIVE INCOME =================
+async function processPassiveIncomeImageWithGemini(event) {
+  const files = event.target.files;
+  if (!files || files.length === 0) return;
+
+  const apiKey = getStoredApiKey();
+  if (!apiKey) {
+    alert('กรุณากรอกและบันทึก Gemini API Key ในแท็บ "ตั้งค่า" ก่อนเปิดใช้งานสแกนภาพครับ');
+    switchTab('tab-setup');
+    return;
+  }
+
+  showToast(`กำลังสแกนสรุปรายรับ-รายจ่าย ด้วย Gemini AI...`);
+
+  const readFileAsBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({
+        base64Data: reader.result.split(',')[1],
+        mimeType: file.type || 'image/jpeg'
+      });
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  try {
+    const { base64Data, mimeType } = await readFileAsBase64(files[0]);
+
+    const promptText = `
+      Analyze this income and expense summary screenshot.
+      Extract:
+      1. Month and Year. If the year is in Buddhist Era (e.g. 2569), convert it to AD year (subtract 543 -> 2026).
+      2. Total Income (รายรับ / รายรับรวม).
+      3. Total Expense (รายจ่าย / รายจ่ายรวม).
+
+      Return ONLY valid JSON format (no markdown block, no prose):
+      {
+        "year": 2026,
+        "month": 7,
+        "income": 105227.00,
+        "expense": 67886.00
+      }
+    `;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: promptText },
+            { inline_data: { mime_type: mimeType, data: base64Data } }
+          ]
+        }]
+      })
+    });
+
+    const resData = await response.json();
+    if (resData.error) {
+      console.error("Gemini Error:", resData.error);
+      alert('Gemini Error: ' + resData.error.message);
+      return;
+    }
+
+    let rawText = resData.candidates[0].content.parts[0].text.trim();
+    rawText = rawText.replace(/```json/gi, '').replace(/

@@ -567,6 +567,21 @@
           </div>
         </div>
 
+        <!-- ✅ ปุ่มแบนเนอร์สำหรับสแกนอ่านสรุป รายรับ-รายจ่าย ด้วย AI -->
+        <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-3 shadow-sm">
+          <div class="flex items-center space-x-3">
+            <div class="p-2.5 bg-emerald-600 text-white rounded-lg shadow-md"><i class="fa-solid fa-wand-magic-sparkles text-lg"></i></div>
+            <div>
+              <h4 class="text-sm font-bold text-slate-800">สแกนสรุป รายรับ-รายจ่าย ด้วย Gemini AI</h4>
+              <p class="text-xs text-slate-500">อ่านค่ารายรับ รายจ่าย และรอบเดือนอัตโนมัติจากภาพสกรีนช็อตแอปบันทึกรายรับ-รายจ่าย</p>
+            </div>
+          </div>
+          <label class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-md whitespace-nowrap">
+            <i class="fa-solid fa-camera mr-1.5"></i> สแกนภาพสกรีนช็อต
+            <input type="file" id="passive-image-input" accept="image/*" onchange="processPassiveIncomeImageWithGemini(event)" class="hidden">
+          </label>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div class="space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-100">
             <h3 class="font-bold text-slate-700 text-sm border-b border-slate-200 pb-2 flex items-center">
