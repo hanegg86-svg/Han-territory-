@@ -8,15 +8,23 @@ function initPassiveIncomeTab() {
   monthSelect.innerHTML = '';
 
   if (sortedMonths.length === 0) {
-    monthSelect.innerHTML = `<option value="${getCurrentMonth()}">${getCurrentMonth()}</option>`;
+    const curr = getCurrentMonth();
+    monthSelect.innerHTML = `<option value="${curr}" class="text-slate-900">${curr}</option>`;
+    monthSelect.value = curr;
   } else {
     sortedMonths.forEach(m => {
-      monthSelect.innerHTML += `<option value="${m}">${m}</option>`;
+      monthSelect.innerHTML += `<option value="${m}" class="text-slate-900">${m}</option>`;
     });
-    // เลือกเดือนล่าสุดเป็นค่าเริ่มต้น
+    // เลือกเดือนล่าสุดเป็นค่าเริ่มต้นเมื่อเปิดแท็บ
     monthSelect.value = sortedMonths[sortedMonths.length - 1];
   }
 
+  loadPassiveIncomeInputs();
+  calculatePassiveIncome();
+}
+
+// ✅ เพิ่มฟังก์ชันสำหรับเรียกใช้งานเมื่อเปลี่ยนตัวเลือกเดือน
+function onPassiveMonthChange() {
   loadPassiveIncomeInputs();
   calculatePassiveIncome();
 }

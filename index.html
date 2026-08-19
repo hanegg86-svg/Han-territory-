@@ -90,7 +90,6 @@
         <button onclick="switchTab('tab-planning')" id="btn-tab-planning" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
           <i class="fa-solid fa-hourglass-half mr-1"></i>เกษียณ
         </button>
-        <!-- ✅ ปุ่มเมนูแท็บ Passive Income ที่เพิ่มเข้ามา -->
         <button onclick="switchTab('tab-passive')" id="btn-tab-passive" class="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
           <i class="fa-solid fa-coins mr-1"></i>Passive Income
         </button>
@@ -554,7 +553,7 @@
       </div>
     </div>
 
-    <!-- ✅ TAB PASSIVE INCOME (เพิ่มใหม่) -->
+    <!-- TAB PASSIVE INCOME -->
     <div id="tab-passive" class="tab-content hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4">
@@ -564,7 +563,8 @@
           </div>
           <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
             <label class="text-xs font-bold text-slate-600 whitespace-nowrap"><i class="fa-solid fa-calendar-days mr-1"></i> เลือกรอบเดือน:</label>
-            <select id="passive-month-select" onchange="initPassiveIncomeTab()" class="p-1.5 border border-slate-300 rounded-lg text-xs font-bold outline-none cursor-pointer bg-white min-w-[130px]"></select>
+            <!-- ✅ ปรับแก้ฟังก์ชัน onchange และคลาสสีตัวหนังสือตรงนี้ -->
+            <select id="passive-month-select" onchange="onPassiveMonthChange()" class="p-1.5 border border-slate-300 rounded-lg text-xs font-bold outline-none cursor-pointer bg-white text-slate-900 min-w-[130px]"></select>
           </div>
         </div>
 
@@ -889,7 +889,7 @@
   <script src="./charts.js"></script>
   <script src="./allocation.js"></script>
   <script src="./planning.js"></script>
-  <script src="./passive-income.js"></script> <!-- ✅ นำเข้าไฟล์ใหม่ที่นี่ -->
+  <script src="./passive-income.js"></script>
   <script src="./transactions.js"></script>
 
   <script src="./app.js"></script>
