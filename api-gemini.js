@@ -99,7 +99,7 @@ async function processImageWithGemini(event) {
         2. Bond/Debenture/Mutual Fund tables: set "items" array with "symbol" (Code) and "nav" (Market unit price / NAV).
       `;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -131,8 +131,8 @@ async function processImageWithGemini(event) {
       const parsedData = JSON.parse(rawText);
 
       if (parsedData.portfolio && (parsedData.portfolio.cash > 0 || parsedData.portfolio.stock > 0)) {
-        const cashVal = parseFloat(parsedData.portfolio.cash) || 0;
-        const stockVal = parseFloat(parsedData.portfolio.stock) || 0;
+        const cashVal = parseLocalNumber(parsedData.portfolio.cash);
+        const stockVal = parseLocalNumber(parsedData.portfolio.stock);
         const totalStockPlusCash = cashVal + stockVal;
 
         if (totalStockPlusCash > 0) {
@@ -156,9 +156,9 @@ async function processImageWithGemini(event) {
       if (Array.isArray(parsedData.items) && parsedData.items.length > 0) {
         parsedData.items.forEach(item => {
           const scannedCode = (item.symbol || '').toUpperCase().trim();
-          const navVal = parseFloat(item.nav);
+          const navVal = parseLocalNumber(item.nav);
 
-          if (scannedCode && !isNaN(navVal) && navVal > 0) {
+          if (scannedCode && navVal > 0) {
             const matchedFund = db.funds.find(f => {
               const fSymbol = (f.symbol || '').toUpperCase().trim();
               const fName = (f.name || '').toUpperCase().trim();
@@ -229,20 +229,21 @@ async function processPassiveIncomeImageWithGemini(event) {
     const promptText = `
       Analyze this income and expense summary screenshot.
       Extract:
-      1. Month and Year. If the year is in Buddhist Era (e.g. 2569), convert it to AD year (subtract 543 -> 2026).
-      2. Total Income (รายรับ / รายรับรวม).
-      3. Total Expense (รายจ่าย / รายจ่ายรวม).
+      1. Year (e.g. 2026 or 2569).
+      2. Month (Month number 1-12 or Thai month name).
+      3. Total Income (รายรับ / รายรับรวม).
+      4. Total Expense (รายจ่าย / รายจ่ายรวม).
 
       Return ONLY valid JSON format (no markdown block, no prose):
       {
         "year": 2026,
         "month": 7,
-        "income": 105227.00,
-        "expense": 67886.00
+        "income": "105227.00",
+        "expense": "67886.00"
       }
     `;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -263,4 +264,75 @@ async function processPassiveIncomeImageWithGemini(event) {
     }
 
     let rawText = resData.candidates[0].content.parts[0].text.trim();
-    rawText = rawText.replace(/```json/gi, '').replace(/
+    rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const firstBrace = rawText.indexOf('{');
+    const lastBrace = rawText.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      rawText = rawText.substring(firstBrace, lastBrace + 1);
+    }
+
+    const parsedData = JSON.parse(rawText);
+
+    // 1. จัดการปี พ.ศ. และ ค.ศ.
+    let yearVal = parseInt(parsedData.year);
+    if (yearVal > 2400) yearVal -= 543;
+
+    // 2. แปลงชื่อเดือนภาษาไทยเป็นตัวเลข (ถ้าจำเป็น)
+    let monthVal = parseInt(parsedData.month);
+    if (isNaN(monthVal)) {
+      const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+      const mStr = String(parsedData.month);
+      const idx = thaiMonths.findIndex(m => mStr.includes(m));
+      if (idx !== -1) monthVal = idx + 1;
+    }
+
+    if (yearVal && monthVal) {
+      const formattedMonth = `${yearVal}-${String(monthVal).padStart(2, '0')}`;
+      
+      const monthSelect = document.getElementById('passive-month-select');
+      if (monthSelect) {
+        let optionExists = false;
+        for (let i = 0; i < monthSelect.options.length; i++) {
+          if (monthSelect.options[i].value === formattedMonth) {
+            optionExists = true;
+            break;
+          }
+        }
+
+        if (!optionExists) {
+          const opt = document.createElement('option');
+          opt.value = formattedMonth;
+          opt.innerText = formattedMonth;
+          opt.className = 'text-slate-900';
+          monthSelect.appendChild(opt);
+        }
+
+        monthSelect.value = formattedMonth;
+        loadPassiveIncomeInputs();
+      }
+
+      // 3. ใช้ parseLocalNumber เพื่อลบคอมม่าและหน่วยเงินก่อนกรอกลงอินพุต
+      const incomeVal = parseLocalNumber(parsedData.income);
+      const expenseVal = parseLocalNumber(parsedData.expense);
+
+      if (incomeVal > 0) {
+        document.getElementById('pass-active-income').value = formatNumber(incomeVal);
+      }
+      if (expenseVal > 0) {
+        document.getElementById('pass-expenses').value = formatNumber(expenseVal);
+      }
+
+      // 4. บันทึกและคำนวณ Passive Income ทันที
+      calculatePassiveIncome();
+      showToast(`สแกนสำเร็จ! อัปเดตข้อมูลเดือน ${formattedMonth} เรียบร้อยแล้ว`);
+    } else {
+      alert('ไม่สามารถอ่านข้อมูล เดือน/ปี จากรูปภาพได้ กรุณาลองใหม่อีกครั้ง');
+    }
+
+  } catch (err) {
+    console.error("Parse Error:", err);
+    alert('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ: ' + err.message);
+  } finally {
+    event.target.value = '';
+  }
+}
