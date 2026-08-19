@@ -567,7 +567,6 @@
           </div>
         </div>
 
-        <!-- ✅ ปุ่มแบนเนอร์สำหรับสแกนอ่านสรุป รายรับ-รายจ่าย ด้วย AI -->
         <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-3 shadow-sm">
           <div class="flex items-center space-x-3">
             <div class="p-2.5 bg-emerald-600 text-white rounded-lg shadow-md"><i class="fa-solid fa-wand-magic-sparkles text-lg"></i></div>
@@ -655,6 +654,29 @@
             </div>
           </div>
         </div>
+
+        <div class="border border-slate-200 rounded-2xl p-5 bg-white shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i class="fa-solid fa-chart-column text-emerald-600"></i>
+                แนวโน้ม Passive Income รายเดือน
+              </h3>
+              <p class="text-xs text-slate-500 mt-0.5">แสดงกราฟแท่งประเมินผลตอบแทนจากการลงทุนในแต่ละรอบเดือน</p>
+            </div>
+            <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs font-bold">
+              <label class="text-slate-600 whitespace-nowrap">ช่วงเวลา:</label>
+              <input type="month" id="pass-chart-start" onchange="renderPassiveIncomeChart()" class="p-1 border border-slate-300 rounded-lg outline-none bg-white text-slate-900 cursor-pointer">
+              <span class="text-slate-400 font-bold">ถึง</span>
+              <input type="month" id="pass-chart-end" onchange="renderPassiveIncomeChart()" class="p-1 border border-slate-300 rounded-lg outline-none bg-white text-slate-900 cursor-pointer">
+            </div>
+          </div>
+
+          <div class="relative h-[320px] w-full">
+            <canvas id="passiveIncomeChart"></canvas>
+          </div>
+        </div>
+
       </div>
     </div>
 
