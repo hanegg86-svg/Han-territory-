@@ -17,6 +17,7 @@ let db = {
 let myChart = null;
 let allocChart = null; 
 let trendChart = null; 
+let passiveChart = null; // ✅ เพิ่มตัวแปรสำหรับกราฟ Passive Income
 let autoSaveTimer = null;
 let activeEntryMonth = '';
 let entryDirty = false;

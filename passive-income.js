@@ -4,7 +4,6 @@
 function getMonthlyPFFromTransactions(targetMonth) {
   if (!db.transactions || !db.funds) return 0;
 
-  // ค้นหากองทุนที่มีชื่อหรือ Symbol เกี่ยวกับ PF
   const pfFundIds = db.funds
     .filter(f => {
       const name = (f.name || '').toUpperCase();
@@ -15,7 +14,6 @@ function getMonthlyPFFromTransactions(targetMonth) {
 
   if (pfFundIds.length === 0) return 0;
 
-  // รวมยอดซื้อ (BUY) ในเดือนที่เลือก
   let totalPF = 0;
   db.transactions.forEach(t => {
     if (t.date && t.date.startsWith(targetMonth) && pfFundIds.includes(t.fundId)) {
@@ -25,6 +23,32 @@ function getMonthlyPFFromTransactions(targetMonth) {
   });
 
   return Math.max(0, totalPF);
+}
+
+// คำนวณ Passive Income สำหรับเดือนที่กำหนด
+function getPassiveIncomeForMonth(targetMonth) {
+  const sortedMonths = Object.keys(db.records || {}).sort();
+  const currentIndex = sortedMonths.indexOf(targetMonth);
+  if (currentIndex === -1) return 0;
+
+  const prevMonth = currentIndex > 0 ? sortedMonths[currentIndex - 1] : null;
+
+  const getMonthTotalWealth = (m) => {
+    if (!m || !db.records || !db.records[m]) return 0;
+    return (db.funds || []).reduce((sum, f) => sum + (db.records[m][f.id] || 0), 0);
+  };
+
+  const currentWealth = getMonthTotalWealth(targetMonth);
+  const prevWealth = getMonthTotalWealth(prevMonth);
+  const wealthDelta = currentWealth - prevWealth;
+
+  const data = (db.passiveIncomeData && db.passiveIncomeData[targetMonth]) || {};
+  const activeIncome = data.activeIncome || 0;
+  const expenses = data.expenses || 0;
+  const autoPF = getMonthlyPFFromTransactions(targetMonth);
+  const pfTotal = data.pfTotal !== undefined ? data.pfTotal : autoPF;
+
+  return wealthDelta - activeIncome - pfTotal + expenses;
 }
 
 function initPassiveIncomeTab() {
@@ -62,10 +86,7 @@ function loadPassiveIncomeInputs() {
   if (!db.passiveIncomeData) db.passiveIncomeData = {};
   const data = db.passiveIncomeData[month] || {};
 
-  // ดึงยอด Auto จากประวัติการซื้อขาย
   const autoPF = getMonthlyPFFromTransactions(month);
-  
-  // ถ้าระบบเคยบันทึกค่าไว้ ให้ใช้ค่านั้น หากยังไม่มี ให้ใช้อยอด autoPF
   const pfTotalValue = data.pfTotal !== undefined ? data.pfTotal : autoPF;
 
   document.getElementById('pass-active-income').value = data.activeIncome ? formatNumber(data.activeIncome) : '';
@@ -108,7 +129,6 @@ function calculatePassiveIncome() {
   const currentWealth = getMonthTotalWealth(targetMonth);
   const prevWealth = getMonthTotalWealth(prevMonth);
   
-  // เงินเก็บที่เพิ่มขึ้น (Delta Wealth)
   const wealthDelta = currentWealth - prevWealth;
 
   // 2. ดึงค่าจากการกรอก
@@ -116,7 +136,7 @@ function calculatePassiveIncome() {
   const expenses = parseLocalNumber(document.getElementById('pass-expenses').value);
   const pfTotal = parseLocalNumber(document.getElementById('pass-pf-total').value);
 
-  // 3. สมการ: Passive Income = เงินเก็บที่เพิ่มขึ้น - active income - เงินเข้า pf + expense
+  // 3. สมการ Passive Income
   const passiveIncome = wealthDelta - activeIncome - pfTotal + expenses;
 
   // 4. แสดงผลลัพธ์ใน UI
@@ -149,7 +169,6 @@ function calculatePassiveIncome() {
     }
   }
 
-  // คำนวณ % Passive Income เทียบกับ Active Income
   const ratioEl = document.getElementById('pass-ratio-val');
   if (ratioEl) {
     if (activeIncome > 0) {
@@ -159,4 +178,83 @@ function calculatePassiveIncome() {
       ratioEl.innerText = 'กรุณาระบุ Active Income เพื่อดูสัดส่วน';
     }
   }
+
+  // ✅ อัปเดตกราฟรายเดือนอัตโนมัติ
+  renderPassiveIncomeChart();
+}
+
+// ✅ ฟังก์ชันวาดกราฟแท่ง Passive Income รายเดือนตามช่วงเวลาที่เลือก
+function renderPassiveIncomeChart() {
+  const canvas = document.getElementById('passiveIncomeChart');
+  if (!canvas) return;
+
+  const sortedMonths = Object.keys(db.records || {}).sort();
+  if (sortedMonths.length === 0) return;
+
+  const startEl = document.getElementById('pass-chart-start');
+  const endEl = document.getElementById('pass-chart-end');
+
+  // ตั้งค่าเริ่มต้นช่วงเวลาหากยังไม่ได้เลือก
+  if (startEl && !startEl.value) {
+    const defaultStartIdx = Math.max(0, sortedMonths.length - 12);
+    startEl.value = sortedMonths[defaultStartIdx];
+  }
+  if (endEl && !endEl.value) {
+    endEl.value = sortedMonths[sortedMonths.length - 1];
+  }
+
+  const startMonth = startEl ? startEl.value : sortedMonths[0];
+  const endMonth = endEl ? endEl.value : sortedMonths[sortedMonths.length - 1];
+
+  const filteredMonths = sortedMonths.filter(m => m >= startMonth && m <= endMonth);
+
+  const dataValues = filteredMonths.map(m => getPassiveIncomeForMonth(m));
+  const backgroundColors = dataValues.map(v => v >= 0 ? 'rgba(16, 185, 129, 0.85)' : 'rgba(239, 68, 68, 0.85)');
+  const borderColors = dataValues.map(v => v >= 0 ? '#10b981' : '#ef4444');
+
+  if (passiveChart) {
+    passiveChart.destroy();
+  }
+
+  const ctx = canvas.getContext('2d');
+  passiveChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: filteredMonths,
+      datasets: [{
+        label: 'Passive Income (บาท)',
+        data: dataValues,
+        backgroundColor: backgroundColors,
+        borderColor: borderColors,
+        borderWidth: 1.5,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              let val = context.raw || 0;
+              return ' Passive Income: ' + (val >= 0 ? '+' : '') + formatNumber(val) + ' บาท';
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          ticks: {
+            callback: function(value) { return '฿' + (value / 1000).toFixed(0) + 'k'; }
+          },
+          grid: { color: 'rgba(226, 232, 240, 0.6)' }
+        },
+        x: {
+          grid: { display: false }
+        }
+      }
+    }
+  });
 }
