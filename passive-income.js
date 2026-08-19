@@ -183,7 +183,7 @@ function calculatePassiveIncome() {
   renderPassiveIncomeChart();
 }
 
-// ✅ ฟังก์ชันวาดกราฟแท่ง Passive Income รายเดือนตามช่วงเวลาที่เลือก
+// ✅ ฟังก์ชันวาดกราฟแท่ง Passive Income รายเดือนตามช่วงเวลาที่เลือก พร้อมคำนวณ Net สะสม
 function renderPassiveIncomeChart() {
   const canvas = document.getElementById('passiveIncomeChart');
   if (!canvas) return;
@@ -211,6 +211,31 @@ function renderPassiveIncomeChart() {
   const dataValues = filteredMonths.map(m => getPassiveIncomeForMonth(m));
   const backgroundColors = dataValues.map(v => v >= 0 ? 'rgba(16, 185, 129, 0.85)' : 'rgba(239, 68, 68, 0.85)');
   const borderColors = dataValues.map(v => v >= 0 ? '#10b981' : '#ef4444');
+
+  // 🟢 คำนวณยอด Net สุทธิสะสม และค่าเฉลี่ยรายเดือนในช่วงเวลาที่เลือก
+  const totalNetPassive = dataValues.reduce((sum, val) => sum + val, 0);
+  const monthsCount = filteredMonths.length;
+  const avgMonthlyPassive = monthsCount > 0 ? (totalNetPassive / monthsCount) : 0;
+
+  // 🟢 อัปเดต UI กระดานสรุปผลช่วงเวลา
+  const rangeTotalEl = document.getElementById('pass-range-total-val');
+  const rangeLabelEl = document.getElementById('pass-range-label');
+  const rangeCountEl = document.getElementById('pass-range-count-tag');
+  const rangeAvgEl = document.getElementById('pass-range-avg-val');
+
+  if (rangeTotalEl) {
+    rangeTotalEl.innerText = (totalNetPassive >= 0 ? '+' : '') + '฿' + formatNumber(totalNetPassive);
+    rangeTotalEl.className = `text-2xl font-black mt-0.5 ${totalNetPassive >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+  }
+  if (rangeLabelEl) {
+    rangeLabelEl.innerText = `ยอด Passive Income สุทธิสะสม (${startMonth} ถึง ${endMonth})`;
+  }
+  if (rangeCountEl) {
+    rangeCountEl.innerText = `รวม ${monthsCount} เดือน`;
+  }
+  if (rangeAvgEl) {
+    rangeAvgEl.innerText = `เฉลี่ย ${avgMonthlyPassive >= 0 ? '+' : ''}฿${formatNumber(avgMonthlyPassive)} / เดือน`;
+  }
 
   if (passiveChart) {
     passiveChart.destroy();
