@@ -1,5 +1,32 @@
 // ================= PASSIVE INCOME MODULE =================
 
+// ฟังก์ชันดึงยอดซื้อ PF อัตโนมัติจากประวัติการซื้อขายในเดือนนั้นๆ
+function getMonthlyPFFromTransactions(targetMonth) {
+  if (!db.transactions || !db.funds) return 0;
+
+  // ค้นหากองทุนที่มีชื่อหรือ Symbol เกี่ยวกับ PF
+  const pfFundIds = db.funds
+    .filter(f => {
+      const name = (f.name || '').toUpperCase();
+      const symbol = (f.symbol || '').toUpperCase();
+      return name.includes('PF') || symbol.includes('PF') || name.includes('PROVIDENT');
+    })
+    .map(f => f.id);
+
+  if (pfFundIds.length === 0) return 0;
+
+  // รวมยอดซื้อ (BUY) ในเดือนที่เลือก
+  let totalPF = 0;
+  db.transactions.forEach(t => {
+    if (t.date && t.date.startsWith(targetMonth) && pfFundIds.includes(t.fundId)) {
+      if (t.type === 'BUY') totalPF += (t.amount || 0);
+      if (t.type === 'SELL') totalPF -= (t.amount || 0);
+    }
+  });
+
+  return Math.max(0, totalPF);
+}
+
 function initPassiveIncomeTab() {
   const monthSelect = document.getElementById('passive-month-select');
   if (!monthSelect) return;
@@ -15,7 +42,6 @@ function initPassiveIncomeTab() {
     sortedMonths.forEach(m => {
       monthSelect.innerHTML += `<option value="${m}" class="text-slate-900">${m}</option>`;
     });
-    // เลือกเดือนล่าสุดเป็นค่าเริ่มต้นเมื่อเปิดแท็บ
     monthSelect.value = sortedMonths[sortedMonths.length - 1];
   }
 
@@ -23,7 +49,6 @@ function initPassiveIncomeTab() {
   calculatePassiveIncome();
 }
 
-// ✅ เพิ่มฟังก์ชันสำหรับเรียกใช้งานเมื่อเปลี่ยนตัวเลือกเดือน
 function onPassiveMonthChange() {
   loadPassiveIncomeInputs();
   calculatePassiveIncome();
@@ -35,12 +60,17 @@ function loadPassiveIncomeInputs() {
   const month = monthSelect.value;
 
   if (!db.passiveIncomeData) db.passiveIncomeData = {};
-  const data = db.passiveIncomeData[month] || { activeIncome: 0, expenses: 0, pfEmployee: 0, pfEmployer: 0 };
+  const data = db.passiveIncomeData[month] || {};
+
+  // ดึงยอด Auto จากประวัติการซื้อขาย
+  const autoPF = getMonthlyPFFromTransactions(month);
+  
+  // ถ้าระบบเคยบันทึกค่าไว้ ให้ใช้ค่านั้น หากยังไม่มี ให้ใช้อยอด autoPF
+  const pfTotalValue = data.pfTotal !== undefined ? data.pfTotal : autoPF;
 
   document.getElementById('pass-active-income').value = data.activeIncome ? formatNumber(data.activeIncome) : '';
   document.getElementById('pass-expenses').value = data.expenses ? formatNumber(data.expenses) : '';
-  document.getElementById('pass-pf-employee').value = data.pfEmployee ? formatNumber(data.pfEmployee) : '';
-  document.getElementById('pass-pf-employer').value = data.pfEmployer ? formatNumber(data.pfEmployer) : '';
+  document.getElementById('pass-pf-total').value = pfTotalValue ? formatNumber(pfTotalValue) : (autoPF ? formatNumber(autoPF) : '');
 }
 
 function savePassiveIncomeData() {
@@ -52,10 +82,9 @@ function savePassiveIncomeData() {
 
   const activeIncome = parseLocalNumber(document.getElementById('pass-active-income').value);
   const expenses = parseLocalNumber(document.getElementById('pass-expenses').value);
-  const pfEmployee = parseLocalNumber(document.getElementById('pass-pf-employee').value);
-  const pfEmployer = parseLocalNumber(document.getElementById('pass-pf-employer').value);
+  const pfTotal = parseLocalNumber(document.getElementById('pass-pf-total').value);
 
-  db.passiveIncomeData[month] = { activeIncome, expenses, pfEmployee, pfEmployer };
+  db.passiveIncomeData[month] = { activeIncome, expenses, pfTotal };
   saveDB();
 }
 
@@ -85,12 +114,10 @@ function calculatePassiveIncome() {
   // 2. ดึงค่าจากการกรอก
   const activeIncome = parseLocalNumber(document.getElementById('pass-active-income').value);
   const expenses = parseLocalNumber(document.getElementById('pass-expenses').value);
-  const pfEmployee = parseLocalNumber(document.getElementById('pass-pf-employee').value);
-  const pfEmployer = parseLocalNumber(document.getElementById('pass-pf-employer').value);
-  const totalPF = pfEmployee + pfEmployer;
+  const pfTotal = parseLocalNumber(document.getElementById('pass-pf-total').value);
 
   // 3. สมการ: Passive Income = เงินเก็บที่เพิ่มขึ้น - active income - เงินเข้า pf + expense
-  const passiveIncome = wealthDelta - activeIncome - totalPF + expenses;
+  const passiveIncome = wealthDelta - activeIncome - pfTotal + expenses;
 
   // 4. แสดงผลลัพธ์ใน UI
   const deltaEl = document.getElementById('pass-wealth-delta-val');

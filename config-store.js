@@ -11,7 +11,7 @@ let db = {
   transactions: [], 
   planningSettings: {},
   allocationSettings: {},
-  passiveIncomeData: {} // ✅ เพิ่มส่วนนี้
+  passiveIncomeData: {}
 };
 
 let myChart = null;
@@ -103,7 +103,7 @@ function loadDB() {
     if(!db.transactions) db.transactions = [];
     if(!db.planningSettings) db.planningSettings = {};
     if(!db.allocationSettings) db.allocationSettings = {};
-    if(!db.passiveIncomeData) db.passiveIncomeData = {}; // ✅ เพิ่มส่วนนี้
+    if(!db.passiveIncomeData) db.passiveIncomeData = {};
     
     if (db.funds && db.funds.length > 0) {
       db.funds = db.funds.map(f => {
@@ -173,7 +173,7 @@ function restoreFromJson() {
       if(!db.transactions) db.transactions = [];
       if(!db.planningSettings) db.planningSettings = {};
       if(!db.allocationSettings) db.allocationSettings = {};
-      if(!db.passiveIncomeData) db.passiveIncomeData = {}; // ✅ เพิ่มส่วนนี้
+      if(!db.passiveIncomeData) db.passiveIncomeData = {};
       
       if (db.funds && db.funds.length > 0) {
         db.funds = db.funds.map(f => {
@@ -233,11 +233,10 @@ function exportToExcel() {
     txData.push([t.date, fundName, typeStr, t.amount]);
   });
 
-  // ✅ Export หน้า Passive Income เพิ่มลงในไฟล์ Excel
-  let passData = [["เดือน/ปี", "Active Income", "Expenses", "PF (ส่วนตน)", "PF (นายจ้าง)"]];
+  let passData = [["เดือน/ปี", "Active Income", "Expenses", "เงินเข้า PF รวม"]];
   Object.keys(db.passiveIncomeData || {}).sort().forEach(m => {
     const item = db.passiveIncomeData[m];
-    passData.push([m, item.activeIncome || 0, item.expenses || 0, item.pfEmployee || 0, item.pfEmployer || 0]);
+    passData.push([m, item.activeIncome || 0, item.expenses || 0, item.pfTotal || 0]);
   });
 
   const wb = XLSX.utils.book_new();
