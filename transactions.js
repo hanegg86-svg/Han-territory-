@@ -14,7 +14,8 @@ function initTransactionsTab() {
   filterSelect.innerHTML = '<option value="ALL">-- แสดงทั้งหมด --</option>';
   (db.funds || []).forEach(f => { filterSelect.innerHTML += `<option value="${f.id}">${escapeHtml(f.name)} (${escapeHtml(f.symbol || '')})</option>`; });
 
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const dateInput = document.getElementById('tx-date');
   const amountInput = document.getElementById('tx-amount');
   if(dateInput) dateInput.value = today;

@@ -1,5 +1,5 @@
-// อัปเดตเวอร์ชันเป็น v3.7.5 เพื่อบังคับเคลียร์ Cache เก่าในเบราว์เซอร์
-const CACHE_NAME = 'wealth-tracker-v3.7.5';
+// อัปเดตเวอร์ชันเป็น v3.7.6 เพื่อบังคับเคลียร์ Cache เก่าในเบราว์เซอร์
+const CACHE_NAME = 'wealth-tracker-v3.7.6';
 
 // รายการไฟล์ทั้งหมดใน Root Folder ที่ต้องการให้ Service Worker ทำการ Caching ไว้สำหรับ Offline Mode
 const ASSETS_TO_CACHE = [
@@ -16,6 +16,7 @@ const ASSETS_TO_CACHE = [
   './charts.js',
   './allocation.js',
   './planning.js',
+  './passive-income.js',
   './transactions.js',
   './app.js',
   // External Libraries
@@ -53,8 +54,8 @@ self.addEventListener('activate', (event) => {
 
 // 3. Fetch Event: ดึงข้อมูลจาก Cache ก่อน หากไม่มีค่อยดึงจาก Network
 self.addEventListener('fetch', (event) => {
-  // ข้ามการทำ Caching สำหรับการเรียก Gemini API
-  if (event.request.url.includes('generativelanguage.googleapis.com')) {
+  // ข้ามคำขอที่ไม่ใช่ GET หรือการเรียก Gemini API
+  if (event.request.method !== 'GET' || event.request.url.includes('generativelanguage.googleapis.com')) {
     return;
   }
 

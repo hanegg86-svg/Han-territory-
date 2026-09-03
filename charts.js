@@ -2,7 +2,7 @@
 const chartValueLabelsPlugin = {
   id: 'chartValueLabelsPlugin',
   afterDatasetsDraw(chart) {
-    if(chart.config.type !== 'line') return;
+    if(chart.config.type !== 'line' || chart.canvas.id !== 'individualChart') return;
     const ctx = chart.ctx;
     const labelCount = chart.data.labels.length;
     const showAll = labelCount <= 12; 
@@ -52,8 +52,8 @@ function isAutoCostSavingsFund(fund) {
     return false;
   }
 
-  return name.includes('ออมทรัพย์') || name.includes('เผื่อเรียก') || 
-         symbol.includes('ออมทรัพย์') || symbol.includes('เผื่อเรียก');
+  return name.includes('') || name.includes('') || 
+         symbol.includes('') || symbol.includes('');
 }
 
 function calculateCumulativeCost(fundId, targetMonth) {
@@ -80,21 +80,21 @@ function initChartsTab() {
   if(!select) return;
   select.innerHTML = '';
   
-  select.innerHTML += `<option value="ALL_PORTFOLIO">🌟 [พอร์ตสินทรัพย์รวมทั้งหมด]</option>`;
-  select.innerHTML += `<option value="CAT_high">💧 [กลุ่มสินทรัพย์สภาพคล่องสูง]</option>`;
-  select.innerHTML += `<option value="CAT_med">🔶 [กลุ่มสินทรัพย์สภาพคล่องปานกลาง]</option>`;
-  select.innerHTML += `<option value="CAT_low">🔒 [กลุ่มสินทรัพย์สภาพคล่องต่ำ]</option>`;
-  select.innerHTML += `<option value="CAT_ins">🛡️ [กลุ่มมูลค่าสะสมประกัน]</option>`;
+  select.innerHTML += `<option value="ALL_PORTFOLIO"> []</option>`;
+  select.innerHTML += `<option value="CAT_high"> []</option>`;
+  select.innerHTML += `<option value="CAT_med"> []</option>`;
+  select.innerHTML += `<option value="CAT_low"> []</option>`;
+  select.innerHTML += `<option value="CAT_ins"> []</option>`;
   
   const uniqueSubs = getAllUniqueSubCategories();
   if(uniqueSubs.length > 0) {
     uniqueSubs.forEach(subName => {
-      select.innerHTML += `<option value="SUBCAT_${escapeHtml(subName)}">📈 [แนวโน้มตามกลุ่มประเภทย่อย: ${escapeHtml(subName)}]</option>`;
+      select.innerHTML += `<option value="SUBCAT_${escapeHtml(subName)}"> [: ${escapeHtml(subName)}]</option>`;
     });
   }
 
   (db.funds || []).forEach(f => {
-    select.innerHTML += `<option value="${f.id}">กองทุน: ${escapeHtml(f.name)} (${escapeHtml(f.symbol || '')})</option>`;
+    select.innerHTML += `<option value="${f.id}">: ${escapeHtml(f.name)} (${escapeHtml(f.symbol || '')})</option>`;
   });
 
   const months = Object.keys(db.records || {}).sort();
@@ -131,7 +131,7 @@ function getMarketValueByFilter(filterVal, monthStr) {
       if (f.subCategories && f.subCategories.length > 0) {
         const subMatch = f.subCategories.find(s => s.name.trim() === subName);
         if (subMatch) totalSubVal += fundVal * (subMatch.weight / 100);
-      } else if (subName === 'ยังไม่ได้ระบุประเภทย่อย') {
+      } else if (subName === '') {
         totalSubVal += fundVal;
       }
     });
@@ -156,7 +156,7 @@ function getCostBasisByFilter(filterVal, monthStr) {
       if (f.subCategories && f.subCategories.length > 0) {
         const subMatch = f.subCategories.find(s => s.name.trim() === subName);
         if (subMatch) totalSubCost += fundCost * (subMatch.weight / 100);
-      } else if (subName === 'ยังไม่ได้ระบุประเภทย่อย') {
+      } else if (subName === '') {
         totalSubCost += fundCost;
       }
     });
@@ -189,10 +189,10 @@ function calculatePeriodReturns(filterId, endMonthStr) {
   if (!inceptionMonth) return null;
 
   const periods = [
-    { key: '6m', name: 'ย้อนหลัง 6 เดือน', monthsBack: 6, isAnnualized: false },
-    { key: '1y', name: 'ย้อนหลัง 1 ปี', monthsBack: 12, isAnnualized: false },
-    { key: '2y', name: 'ย้อนหลัง 2 ปี', monthsBack: 24, isAnnualized: true },
-    { key: '5y', name: 'ย้อนหลัง 5 ปี', monthsBack: 60, isAnnualized: true }
+    { key: '6m', name: ' 6 ', monthsBack: 6, isAnnualized: false },
+    { key: '1y', name: ' 1 ', monthsBack: 12, isAnnualized: false },
+    { key: '2y', name: ' 2 ', monthsBack: 24, isAnnualized: true },
+    { key: '5y', name: ' 5 ', monthsBack: 60, isAnnualized: true }
   ];
 
   const results = {};
@@ -293,24 +293,24 @@ function renderIndividualChart() {
   if(summaryContainer) {
     summaryContainer.innerHTML = `
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm text-center">
-        <p class="text-xs font-bold text-slate-500 mb-1">การเปลี่ยนแปลงช่วงเวลา</p>
+        <p class="text-xs font-bold text-slate-500 mb-1"></p>
         <h4 class="text-lg font-black ${isPeriodPos ? 'text-emerald-600' : 'text-rose-600'}">${isPeriodPos ? '+' : ''}${formatNumber(periodDiff)}</h4>
         <p class="text-[10px] font-bold ${isPeriodPos ? 'text-emerald-600' : 'text-rose-600'} mt-0.5">${isPeriodPos ? '+' : ''}${periodDiffPct.toFixed(2)}%</p>
       </div>
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm text-center">
-        <p class="text-xs font-bold text-blue-600 mb-1">มูลค่าปัจจุบัน (${endM})</p>
-        <h4 class="text-lg font-black text-slate-800">฿${formatNumber(latestMV)}</h4>
+        <p class="text-xs font-bold text-blue-600 mb-1"> (${endM})</p>
+        <h4 class="text-lg font-black text-slate-800">${formatNumber(latestMV)}</h4>
       </div>
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm text-center">
-        <p class="text-xs font-bold text-slate-500 mb-1">เงินลงทุนสะสม (ต้นทุน)</p>
-        <h4 class="text-lg font-black text-slate-800">฿${formatNumber(latestCost)}</h4>
+        <p class="text-xs font-bold text-slate-500 mb-1"> ()</p>
+        <h4 class="text-lg font-black text-slate-800">${formatNumber(latestCost)}</h4>
       </div>
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm text-center">
-        <p class="text-xs font-bold text-slate-600 mb-1">ผลกำไรรวม (บาท)</p>
+        <p class="text-xs font-bold text-slate-600 mb-1"> ()</p>
         <h4 class="text-lg font-black ${latestProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${latestProfit >= 0 ? '+' : ''}${formatNumber(latestProfit)}</h4>
       </div>
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm text-center">
-        <p class="text-xs font-bold text-slate-600 mb-1">คิดเป็นเปอร์เซ็นต์</p>
+        <p class="text-xs font-bold text-slate-600 mb-1"></p>
         <h4 class="text-lg font-black ${latestProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${latestProfit >= 0 ? '+' : ''}${latestProfitPct.toFixed(2)}%</h4>
       </div>
     `;
@@ -324,18 +324,18 @@ function renderIndividualChart() {
         const item = periodData[key];
         let valText = 'N/A';
         let colorClass = 'text-slate-400';
-        let noteText = 'ไม่มีข้อมูลในระยะเวลา';
+        let noteText = '';
 
         if (item && item.returnPct !== null && !isNaN(item.returnPct) && isFinite(item.returnPct)) {
           const isPos = item.returnPct >= 0;
           valText = `${isPos ? '+' : ''}${item.returnPct.toFixed(2)}%`;
           colorClass = isPos ? 'text-emerald-600' : 'text-rose-600';
-          noteText = `เทียบข้อมูล ณ ${item.matchedMonth}`;
+          noteText = `  ${item.matchedMonth}`;
         }
 
         periodContainer.innerHTML += `
           <div class="bg-slate-50/80 p-3 rounded-xl border border-slate-200 shadow-sm text-center">
-            <p class="text-[11px] font-bold text-slate-600 mb-0.5">${item ? item.label : ''} ${item && item.isAnnualized ? '<span class="text-[9px] text-blue-600 font-normal">(ต่อปี)</span>' : ''}</p>
+            <p class="text-[11px] font-bold text-slate-600 mb-0.5">${item ? item.label : ''} ${item && item.isAnnualized ? '<span class="text-[9px] text-blue-600 font-normal">()</span>' : ''}</p>
             <h4 class="text-base font-black ${colorClass}">${valText}</h4>
             <p class="text-[9px] text-slate-400 mt-0.5 truncate">${noteText}</p>
           </div>
@@ -355,7 +355,7 @@ function renderIndividualChart() {
       labels,
       datasets: [
         {
-          label: 'มูลค่าปัจจุบัน (Current Market Value)',
+          label: ' (Current Market Value)',
           data: marketValues,
           borderColor: CHART_COLORS[0].border,
           backgroundColor: 'transparent',
@@ -366,7 +366,7 @@ function renderIndividualChart() {
           tension: 0.15
         },
         {
-          label: 'เงินลงทุนสะสม (Cost Basis)',
+          label: ' (Cost Basis)',
           data: costValues,
           borderColor: CHART_COLORS[1].border,
           backgroundColor: 'transparent',
@@ -408,7 +408,7 @@ function renderAnnualPerformanceTable(filterId) {
       tbody.innerHTML += `
         <tr class="border-b border-slate-100 bg-slate-50/30 text-slate-400">
           <td class="p-3 font-bold">${year}</td>
-          <td colspan="4" class="p-3 text-center italic text-slate-300">ไม่มีข้อมูลบันทึกในปีนี้</td>
+          <td colspan="4" class="p-3 text-center italic text-slate-300"></td>
         </tr>`;
       continue;
     }
@@ -430,8 +430,8 @@ function renderAnnualPerformanceTable(filterId) {
     tbody.innerHTML += `
       <tr class="border-b border-slate-100 hover:bg-slate-50/50">
         <td class="p-3 font-bold text-slate-900">${year} <span class="text-[10px] font-normal text-slate-400">(${targetMonth})</span></td>
-        <td class="p-3 text-right font-mono">฿${formatNumber(mv)}</td>
-        <td class="p-3 text-right font-mono text-slate-500">฿${formatNumber(cost)}</td>
+        <td class="p-3 text-right font-mono">${formatNumber(mv)}</td>
+        <td class="p-3 text-right font-mono text-slate-500">${formatNumber(cost)}</td>
         <td class="p-3 text-right font-mono font-bold ${colorClass}">${isPos ? '+' : ''}${formatNumber(profit)}</td>
         <td class="p-3 text-right font-mono font-bold ${colorClass}">${isPos ? '+' : ''}${profitPct.toFixed(2)}%</td>
       </tr>`;

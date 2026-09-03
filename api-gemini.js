@@ -78,109 +78,118 @@ async function processImageWithGemini(event) {
     });
   };
 
+  let matchedCount = 0;
+
   try {
-    let matchedCount = 0;
-
     for (let file of files) {
-      const { base64Data, mimeType } = await readFileAsBase64(file);
+      try {
+        const { base64Data, mimeType } = await readFileAsBase64(file);
 
-      const promptText = `
-        Analyze this screenshot. It can be a Portfolio Overview, Mutual Fund list, or Bond/Debenture table.
-        Extract investment values and return ONLY valid JSON (no markdown, no code block).
+        const promptText = `
+          Analyze this screenshot. It can be a Portfolio Overview, Mutual Fund list, or Bond/Debenture table.
+          Extract investment values and return ONLY valid JSON (no markdown, no code block).
 
-        Expected JSON format:
-        {
-          "portfolio": {"cash": 0, "stock": 0},
-          "items": [{"symbol": "CODE", "nav": 0}]
-        }
-
-        Rules:
-        1. Portfolio Overview ("รายละเอียดสินทรัพย์"): set "portfolio" with "cash" and "stock" values.
-        2. Bond/Debenture/Mutual Fund tables: set "items" array with "symbol" (Code) and "nav" (Market unit price / NAV).
-      `;
-
-      // ✅ ใช้ gemini-3.5-flash-lite ตรงตามที่กำหนด
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: promptText },
-              { inline_data: { mime_type: mimeType, data: base64Data } }
-            ]
-          }]
-        })
-      });
-
-      const resData = await response.json();
-      if (resData.error) {
-        console.error("Gemini Error:", resData.error);
-        alert('Gemini Error: ' + resData.error.message);
-        continue;
-      }
-
-      let rawText = resData.candidates[0].content.parts[0].text.trim();
-      
-      rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      const firstBrace = rawText.indexOf('{');
-      const lastBrace = rawText.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1) {
-        rawText = rawText.substring(firstBrace, lastBrace + 1);
-      }
-
-      const parsedData = JSON.parse(rawText);
-
-      if (parsedData.portfolio && (parsedData.portfolio.cash > 0 || parsedData.portfolio.stock > 0)) {
-        const cashVal = parseLocalNumber(parsedData.portfolio.cash);
-        const stockVal = parseLocalNumber(parsedData.portfolio.stock);
-        const totalStockPlusCash = cashVal + stockVal;
-
-        if (totalStockPlusCash > 0) {
-          const matchedStockFund = db.funds.find(f => {
-            const fSymbol = (f.symbol || '').toUpperCase().trim();
-            const fName = (f.name || '').toUpperCase().trim();
-            return fSymbol === 'หุ้น' || fName === 'หุ้น' || fSymbol === 'STOCK' || fName.includes('หุ้น');
-          });
-
-          if (matchedStockFund) {
-            const totalInput = document.getElementById(`entry-${matchedStockFund.id}`);
-            if (totalInput) {
-              totalInput.value = formatNumber(totalStockPlusCash);
-              autoCalcMonthlyFund(matchedStockFund.id, 'total');
-              matchedCount++;
-            }
+          Expected JSON format:
+          {
+            "portfolio": {"cash": 0, "stock": 0},
+            "items": [{"symbol": "CODE", "nav": 0}]
           }
+
+          Rules:
+          1. Portfolio Overview ("รายละเอียดสินทรัพย์"): set "portfolio" with "cash" and "stock" values.
+          2. Bond/Debenture/Mutual Fund tables: set "items" array with "symbol" (Code) and "nav" (Market unit price / NAV).
+        `;
+
+        // ✅ ใช้ gemini-3.5-flash-lite ตรงตามที่กำหนด
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: promptText },
+                { inline_data: { mime_type: mimeType, data: base64Data } }
+              ]
+            }]
+          })
+        });
+
+        const resData = await response.json();
+        if (resData.error) {
+          console.error("Gemini Error:", resData.error);
+          alert('Gemini Error: ' + resData.error.message);
+          continue;
         }
-      }
 
-      if (Array.isArray(parsedData.items) && parsedData.items.length > 0) {
-        parsedData.items.forEach(item => {
-          const scannedCode = (item.symbol || '').toUpperCase().trim();
-          const navVal = parseLocalNumber(item.nav);
+        if (!resData.candidates || !resData.candidates[0] || !resData.candidates[0].content || !resData.candidates[0].content.parts || !resData.candidates[0].content.parts[0]) {
+          console.warn("Gemini response is empty or blocked:", resData);
+          continue;
+        }
 
-          if (scannedCode && navVal > 0) {
-            const matchedFund = db.funds.find(f => {
+        let rawText = resData.candidates[0].content.parts[0].text.trim();
+        
+        rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const firstBrace = rawText.indexOf('{');
+        const lastBrace = rawText.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+          rawText = rawText.substring(firstBrace, lastBrace + 1);
+        }
+
+        const parsedData = JSON.parse(rawText);
+
+        if (parsedData.portfolio && (parsedData.portfolio.cash > 0 || parsedData.portfolio.stock > 0)) {
+          const cashVal = parseLocalNumber(parsedData.portfolio.cash);
+          const stockVal = parseLocalNumber(parsedData.portfolio.stock);
+          const totalStockPlusCash = cashVal + stockVal;
+
+          if (totalStockPlusCash > 0) {
+            const matchedStockFund = db.funds.find(f => {
               const fSymbol = (f.symbol || '').toUpperCase().trim();
               const fName = (f.name || '').toUpperCase().trim();
-              if (!fSymbol && !fName) return false;
-
-              return fSymbol === scannedCode || 
-                     fName === scannedCode || 
-                     scannedCode.startsWith(fSymbol) || 
-                     fSymbol.startsWith(scannedCode);
+              return fSymbol === 'หุ้น' || fName === 'หุ้น' || fSymbol === 'STOCK' || fName.includes('หุ้น');
             });
 
-            if (matchedFund) {
-              const navEl = document.getElementById(`entry-nav-${matchedFund.id}`);
-              if (navEl) {
-                navEl.value = navVal;
-                autoCalcMonthlyFund(matchedFund.id, 'nav');
+            if (matchedStockFund) {
+              const totalInput = document.getElementById(`entry-${matchedStockFund.id}`);
+              if (totalInput) {
+                totalInput.value = formatNumber(totalStockPlusCash);
+                autoCalcMonthlyFund(matchedStockFund.id, 'total');
                 matchedCount++;
               }
             }
           }
-        });
+        }
+
+        if (Array.isArray(parsedData.items) && parsedData.items.length > 0) {
+          parsedData.items.forEach(item => {
+            const scannedCode = (item.symbol || '').toUpperCase().trim();
+            const navVal = parseLocalNumber(item.nav);
+
+            if (scannedCode && navVal > 0) {
+              const matchedFund = db.funds.find(f => {
+                const fSymbol = (f.symbol || '').toUpperCase().trim();
+                const fName = (f.name || '').toUpperCase().trim();
+                if (!fSymbol && !fName) return false;
+
+                return fSymbol === scannedCode || 
+                       fName === scannedCode || 
+                       scannedCode.startsWith(fSymbol) || 
+                       fSymbol.startsWith(scannedCode);
+              });
+
+              if (matchedFund) {
+                const navEl = document.getElementById(`entry-nav-${matchedFund.id}`);
+                if (navEl) {
+                  navEl.value = navVal;
+                  autoCalcMonthlyFund(matchedFund.id, 'nav');
+                  matchedCount++;
+                }
+              }
+            }
+          });
+        }
+      } catch (fileErr) {
+        console.error("Error processing file:", file.name, fileErr);
       }
     }
 
@@ -191,7 +200,7 @@ async function processImageWithGemini(event) {
     }
 
   } catch (err) {
-    console.error("Parse Error:", err);
+    console.error("Process Error:", err);
     alert('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ: ' + err.message);
   } finally {
     event.target.value = ''; 
@@ -262,6 +271,12 @@ async function processPassiveIncomeImageWithGemini(event) {
     if (resData.error) {
       console.error("Gemini Error:", resData.error);
       alert('Gemini Error: ' + resData.error.message);
+      return;
+    }
+
+    if (!resData.candidates || !resData.candidates[0] || !resData.candidates[0].content || !resData.candidates[0].content.parts || !resData.candidates[0].content.parts[0]) {
+      console.error("Gemini response candidate missing:", resData);
+      alert('Gemini ไม่สามารถประมวลผลข้อความจากภาพนี้ได้ กรุณาลองใหม่อีกครั้ง');
       return;
     }
 

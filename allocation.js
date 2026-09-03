@@ -390,7 +390,7 @@ function renderHistoricalAllocationChart() {
   });
 
   let subCatsToDisplay = selectedSubCatsForCompare && selectedSubCatsForCompare.length > 0 
-    ? selectedSubCatsForCompare 
+    ? [...selectedSubCatsForCompare] 
     : getAllUniqueSubCategories();
 
   if ((db.funds || []).some(f => !f.subCategories || f.subCategories.length === 0)) {
@@ -511,8 +511,14 @@ function renderHistoricalAllocationTable() {
   });
 
   let subCatsToDisplay = selectedSubCatsForCompare && selectedSubCatsForCompare.length > 0 
-    ? selectedSubCatsForCompare 
+    ? [...selectedSubCatsForCompare] 
     : getAllUniqueSubCategories();
+
+  if ((db.funds || []).some(f => !f.subCategories || f.subCategories.length === 0)) {
+    if (!subCatsToDisplay.includes('ยังไม่ได้ระบุประเภทย่อย')) {
+      subCatsToDisplay.push('ยังไม่ได้ระบุประเภทย่อย');
+    }
+  }
 
   subCatsToDisplay.forEach(subNameRaw => {
     const subName = subNameRaw.trim();

@@ -100,14 +100,18 @@ function addSubCategory(fundId) {
   if (fund.subCategories.length >= 4) return alert('จำกัดสูงสุด 4 ประเภทต่อกองทุนผสมครับ');
   
   const name = prompt('กรอกชื่อประเภทย่อย (เช่น ทอง, หุ้นต่างประเทศ, เงินสด):');
-  if (!name || name.trim() === '') return;
+  if (name === null) return;
+  if (name.trim() === '') return alert('กรุณากรอกชื่อประเภทย่อย');
+  
   const weight = prompt('กรอกสัดส่วนเปอร์เซ็นต์ (%) (เช่น 25):');
-  if (!weight || isNaN(parseFloat(weight))) return alert('กรุณากรอกตัวเลขสัดส่วนที่ถูกต้อง');
+  if (weight === null) return;
+  const parsedWeight = parseFloat(weight);
+  if (isNaN(parsedWeight) || parsedWeight <= 0 || parsedWeight > 100) return alert('กรุณากรอกตัวเลขสัดส่วนที่ถูกต้อง (1-100)');
 
   fund.subCategories.push({
     id: 'sub_' + Math.random().toString(36).substr(2, 5),
     name: name.trim(),
-    weight: parseFloat(weight)
+    weight: parsedWeight
   });
   saveDB();
   renderSetupTab();
