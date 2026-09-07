@@ -76,7 +76,7 @@ function refreshCurrentTab() {
 }
 
 // ================= APP INITIALIZATION =================
-document.addEventListener('DOMContentLoaded', () => {
-  loadDB();
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadDB();
   switchTab('tab-compare');
 });

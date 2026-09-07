@@ -1,5 +1,5 @@
-// อัปเดตเวอร์ชันเป็น v3.7.6 เพื่อบังคับเคลียร์ Cache เก่าในเบราว์เซอร์
-const CACHE_NAME = 'wealth-tracker-v3.7.6';
+// อัปเดตเวอร์ชันเป็น v3.8.0 เพื่อบังคับเคลียร์ Cache เก่าในเบราว์เซอร์
+const CACHE_NAME = 'wealth-tracker-v3.8.0';
 
 // รายการไฟล์ทั้งหมดใน Root Folder ที่ต้องการให้ Service Worker ทำการ Caching ไว้สำหรับ Offline Mode
 const ASSETS_TO_CACHE = [

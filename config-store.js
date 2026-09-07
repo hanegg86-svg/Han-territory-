@@ -63,44 +63,119 @@ function checkEmptyState() {
   else warn.classList.add('hidden');
 }
 
-// ================= LOCALSTORAGE & DATABASE =================
-function updateStorageSizeDisplay() {
-  const dbData = localStorage.getItem('ProWealthDB_v2') || '';
-  const bytes = new Blob([dbData]).size;
-  const maxBytes = 5 * 1024 * 1024; 
-  const pct = Math.min(100, (bytes / maxBytes) * 100);
+// ================= INDEXEDDB ENGINE =================
+const IDB_NAME = 'ProWealthDB';
+const IDB_VERSION = 1;
+const IDB_STORE_NAME = 'app_state';
+const IDB_KEY = 'state_v2';
 
-  let formattedSize = '';
-  if (bytes >= 1024 * 1024) {
-    formattedSize = (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  } else if (bytes >= 1024) {
-    formattedSize = (bytes / 1024).toFixed(2) + ' KB';
-  } else {
-    formattedSize = bytes + ' Bytes';
-  }
-
-  const textEl = document.getElementById('db-storage-text');
-  const barEl = document.getElementById('db-storage-bar');
-
-  if (textEl) {
-    textEl.innerText = `${formattedSize} / 5.00 MB (${pct.toFixed(2)}%)`;
-  }
-  if (barEl) {
-    barEl.style.width = `${pct}%`;
-    if (pct > 90) {
-      barEl.className = 'bg-rose-500 h-full transition-all duration-300';
-    } else if (pct > 70) {
-      barEl.className = 'bg-amber-500 h-full transition-all duration-300';
-    } else {
-      barEl.className = 'bg-blue-600 h-full transition-all duration-300';
-    }
-  }
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(IDB_NAME, IDB_VERSION);
+    request.onupgradeneeded = (event) => {
+      const dbInstance = event.target.result;
+      if (!dbInstance.objectStoreNames.contains(IDB_STORE_NAME)) {
+        dbInstance.createObjectStore(IDB_STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
 }
 
-function loadDB() {
-  const saved = localStorage.getItem('ProWealthDB_v2');
+async function getIDB(key) {
+  const idb = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(IDB_STORE_NAME, 'readonly');
+    const store = tx.objectStore(IDB_STORE_NAME);
+    const request = store.get(key);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function setIDB(key, val) {
+  const idb = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(IDB_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(IDB_STORE_NAME);
+    const request = store.put(val, key);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function clearIDB() {
+  const idb = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(IDB_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(IDB_STORE_NAME);
+    const request = store.clear();
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// ================= DATABASE & STORAGE DISPLAY =================
+async function updateStorageSizeDisplay() {
+  const textEl = document.getElementById('db-storage-text');
+  const barEl = document.getElementById('db-storage-bar');
+  if (!textEl && !barEl) return;
+
+  if (navigator.storage && navigator.storage.estimate) {
+    try {
+      const { usage, quota } = await navigator.storage.estimate();
+      const usageMB = (usage / (1024 * 1024)).toFixed(2);
+      const quotaMB = (quota / (1024 * 1024)).toFixed(0);
+      const pct = Math.min(100, (usage / quota) * 100);
+
+      if (textEl) {
+        textEl.innerText = `${usageMB} MB / ${quotaMB} MB (${pct.toFixed(2)}% ของพื้นที่เบราว์เซอร์)`;
+      }
+      if (barEl) {
+        barEl.style.width = `${pct}%`;
+        if (pct > 90) barEl.className = 'bg-rose-500 h-full transition-all duration-300';
+        else if (pct > 70) barEl.className = 'bg-amber-500 h-full transition-all duration-300';
+        else barEl.className = 'bg-blue-600 h-full transition-all duration-300';
+      }
+      return;
+    } catch (e) {
+      console.warn('Storage estimate failed:', e);
+    }
+  }
+
+  // Fallback คำนวณจากขนาด Object String
+  const bytes = new Blob([JSON.stringify(db)]).size;
+  const sizeKB = (bytes / 1024).toFixed(2);
+  if (textEl) textEl.innerText = `${sizeKB} KB (IndexedDB Engine)`;
+  if (barEl) barEl.style.width = '1%';
+}
+
+async function loadDB() {
+  let saved = null;
+  try {
+    saved = await getIDB(IDB_KEY);
+  } catch (err) {
+    console.warn('Could not read from IndexedDB, trying localStorage fallback:', err);
+  }
+
+  // ระบบ Auto-Migration: ย้ายข้อมูลเดิมจาก LocalStorage สู่ IndexedDB อัตโนมัติ
+  if (!saved) {
+    const localData = localStorage.getItem('ProWealthDB_v2');
+    if (localData) {
+      try {
+        saved = JSON.parse(localData);
+        await setIDB(IDB_KEY, saved);
+        localStorage.removeItem('ProWealthDB_v2');
+        console.log('Successfully migrated data from LocalStorage to IndexedDB');
+      } catch (migrationErr) {
+        console.error('Migration failed:', migrationErr);
+      }
+    }
+  }
+
   if (saved) {
-    db = JSON.parse(saved);
+    db = saved;
     if(!db.transactions) db.transactions = [];
     if(!db.planningSettings) db.planningSettings = {};
     if(!db.allocationSettings) db.allocationSettings = {};
@@ -123,13 +198,18 @@ function loadDB() {
 }
 
 function saveDB() {
-  localStorage.setItem('ProWealthDB_v2', JSON.stringify(db));
+  setIDB(IDB_KEY, db).catch(err => console.error('Save to IndexedDB failed:', err));
   checkEmptyState();
   updateStorageSizeDisplay();
 }
 
-function factoryReset() {
+async function factoryReset() {
   if (confirm('⚠️ ล้างข้อมูลทั้งหมดอย่างถาวร ยืนยันหรือไม่?')) {
+    try {
+      await clearIDB();
+    } catch (e) {
+      console.error(e);
+    }
     localStorage.removeItem('ProWealthDB_v2');
     localStorage.removeItem('GEMINI_API_KEY');
     location.reload();
