@@ -353,3 +353,62 @@ async function processPassiveIncomeImageWithGemini(event) {
     event.target.value = '';
   }
 }
+
+// ================= GEMINI AI CHART & NAV TREND ANALYZER =================
+async function analyzeChartWithGemini(base64Data, statsText) {
+  const apiKey = getStoredApiKey();
+  if (!apiKey) {
+    alert('กรุณากรอกและบันทึก Gemini API Key ในแท็บ "ตั้งค่า" ก่อนเปิดใช้งานการวิเคราะห์ครับ');
+    switchTab('tab-setup');
+    return null;
+  }
+
+  const promptText = `
+    คุณคือผู้เชี่ยวชาญด้านการจัดพอร์ตการลงทุนและการวิเคราะห์กองทุนรวมระดับมืออาชีพ
+    โปรดวิเคราะห์รูปภาพกราฟแนวโน้มสินทรัพย์ (เส้นทึบคือ Market Value ปัจจุบัน และเส้นประคือ Cost Basis ต้นทุนสะสม)
+    ควบคู่กับข้อมูลสถิติผลตอบแทนต่อไปนี้:
+
+    ${statsText}
+
+    กรุณาสรุปบทวิเคราะห์เชิงลึกเป็นภาษาไทยแบบกระชับ อ่านง่าย และตรงประเด็น โดยจัดโครงสร้างดังนี้:
+    1. 📈 การประเมินโครงสร้างและแนวโน้มราคา (Trend & Structure)
+    2. ⚖️ การวิเคราะห์ต้นทุนเทียบมูลค่าตลาด (Cost Basis vs Current Value)
+    3. 💡 คำแนะนำและกลยุทธ์เชิงปฏิบัติการ (Actionable Strategy เช่น DCA ต่อเนื่อง, ชะลอเพื่อรอฐานราคา, หรือจังหวะ Rebalance พอร์ต)
+
+    จัดรูปแบบข้อความด้วย Markdown ที่อ่านง่าย ไม่ใช้ศัพท์เทคนิคที่ซับซ้อนเกินไป เหมาะกับการเปิดอ่านบนมือถือ
+  `;
+
+  try {
+    // ✅ ใช้ gemini-3.5-flash-lite ตรงตามที่กำหนด
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: promptText },
+            { inline_data: { mime_type: 'image/png', data: base64Data } }
+          ]
+        }]
+      })
+    });
+
+    const resData = await response.json();
+    if (resData.error) {
+      console.error("Gemini Error:", resData.error);
+      alert('Gemini Error: ' + resData.error.message);
+      return null;
+    }
+
+    if (!resData.candidates || !resData.candidates[0] || !resData.candidates[0].content || !resData.candidates[0].content.parts || !resData.candidates[0].content.parts[0]) {
+      alert('Gemini ไม่สามารถวิเคราะห์ภาพกราฟนี้ได้ กรุณาลองใหม่อีกครั้ง');
+      return null;
+    }
+
+    return resData.candidates[0].content.parts[0].text;
+  } catch (err) {
+    console.error("Analyze Error:", err);
+    alert('เกิดข้อผิดพลาดในการวิเคราะห์กราฟ: ' + err.message);
+    return null;
+  }
+}

@@ -437,3 +437,79 @@ function renderAnnualPerformanceTable(filterId) {
       </tr>`;
   }
 }
+
+// ================= AI CHART ANALYZER TRIGGER =================
+async function triggerAIChartAnalysis() {
+  if (!myChart) return alert('กรุณารอให้กราฟแสดงผลก่อนทำการวิเคราะห์ครับ');
+  
+  const fundSelect = document.getElementById('chart-fund-select');
+  const startEl = document.getElementById('chart-start');
+  const endEl = document.getElementById('chart-end');
+  
+  const fundName = fundSelect ? fundSelect.options[fundSelect.selectedIndex].text : '';
+  const filterId = fundSelect ? fundSelect.value : '';
+  const startM = startEl ? startEl.value : '';
+  const endM = endEl ? endEl.value : '';
+
+  const resultBox = document.getElementById('chart-ai-result-box');
+  const loadingEl = document.getElementById('chart-ai-loading');
+  const contentEl = document.getElementById('chart-ai-content');
+  const btn = document.getElementById('btn-chart-ai');
+
+  if (resultBox) resultBox.classList.remove('hidden');
+  if (loadingEl) loadingEl.classList.remove('hidden');
+  if (contentEl) contentEl.innerHTML = '';
+  if (btn) btn.disabled = true;
+
+  try {
+    // 1. ดึงภาพ Base64 ของกราฟเส้นปัจจุบัน
+    const chartBase64Url = myChart.toBase64Image('image/png', 1);
+    const base64Data = chartBase64Url.split(',')[1];
+
+    // 2. รวบรวมสถิติตัวเลขประกอบ
+    const latestMV = getMarketValueByFilter(filterId, endM) || 0;
+    const latestCost = getCostBasisByFilter(filterId, endM) || 0;
+    const profit = latestMV - latestCost;
+    const profitPct = latestCost > 0 ? ((profit / latestCost) * 100).toFixed(2) : 0;
+    
+    let periodSummaryText = '';
+    const periodData = calculatePeriodReturns(filterId, endM);
+    if (periodData) {
+      ['6m', '1y', '2y', '5y'].forEach(k => {
+        const item = periodData[k];
+        if (item && item.returnPct !== null) {
+          periodSummaryText += `- ${item.label}: ${item.returnPct >= 0 ? '+' : ''}${item.returnPct.toFixed(2)}%\n`;
+        }
+      });
+    }
+
+    const statsText = `
+- สินทรัพย์/กลุ่มที่วิเคราะห์: ${fundName}
+- ช่วงเวลาที่แสดงในกราฟ: ${startM} ถึง ${endM}
+- มูลค่าตลาดปัจจุบัน (${endM}): ${formatNumber(latestMV)} บาท
+- ต้นทุนสะสมทั้งหมด: ${formatNumber(latestCost)} บาท
+- กำไร/ขาดทุนรวม: ${profit >= 0 ? '+' : ''}${formatNumber(profit)} บาท (${profitPct}%)
+- ผลตอบแทนย้อนหลังตามช่วงเวลา:
+${periodSummaryText || 'ไม่มีข้อมูลช่วงเวลาย้อนหลัง'}
+    `;
+
+    // 3. ยิงประมวลผลผ่าน Gemini API (ใช้ gemini-3.5-flash-lite)
+    const analysisResult = await analyzeChartWithGemini(base64Data, statsText);
+
+    if (analysisResult && contentEl) {
+      // แปลง Markdown เบื้องต้นให้แสดงผลสวยงามบน UI
+      let formattedHtml = analysisResult
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+        .replace(/### (.*?)\n/g, '<h4 class="font-bold text-slate-800 text-sm mt-2">$1</h4>')
+        .replace(/## (.*?)\n/g, '<h3 class="font-bold text-blue-700 text-sm mt-3">$1</h3>')
+        .replace(/\n/g, '<br>');
+      contentEl.innerHTML = formattedHtml;
+    }
+  } catch (err) {
+    console.error("AI Analysis Trigger Error:", err);
+    alert('เกิดข้อผิดพลาดในการวิเคราะห์กราฟ: ' + err.message);
+  } finally {
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (btn) btn.disabled = false;
+  }
+}

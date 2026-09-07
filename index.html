@@ -246,6 +246,32 @@
           <div id="chart-period-returns" class="grid grid-cols-2 sm:grid-cols-4 gap-4"></div>
         </div>
 
+        <!-- AI NAV & Trend Analyzer Box -->
+        <div class="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 p-4 rounded-xl space-y-3 shadow-sm">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div class="flex items-center space-x-3">
+              <div class="p-2.5 bg-indigo-600 text-white rounded-lg shadow-md">
+                <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
+              </div>
+              <div>
+                <h4 class="text-sm font-bold text-slate-800">วิเคราะห์กราฟและแนวโน้มด้วย Gemini 3.5 Flash-Lite</h4>
+                <p class="text-xs text-slate-500">ให้ AI อ่านภาพกราฟและสถิติผลตอบแทน พร้อมประเมินแนวโน้มและจังหวะลงทุน</p>
+              </div>
+            </div>
+            <button onclick="triggerAIChartAnalysis()" id="btn-chart-ai" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all shadow-md whitespace-nowrap flex items-center gap-2">
+              <i class="fa-solid fa-robot"></i> วิเคราะห์กราฟด้วย AI
+            </button>
+          </div>
+
+          <div id="chart-ai-result-box" class="hidden bg-white p-4 rounded-xl border border-indigo-100 text-xs text-slate-700 leading-relaxed shadow-sm space-y-2">
+            <div id="chart-ai-loading" class="hidden flex items-center space-x-2 text-indigo-600 font-bold py-2">
+              <i class="fa-solid fa-circle-notch fa-spin text-base"></i>
+              <span>กำลังส่งภาพกราฟและประมวลผลด้วย Gemini AI...</span>
+            </div>
+            <div id="chart-ai-content" class="space-y-2 leading-relaxed"></div>
+          </div>
+        </div>
+
         <div class="relative h-[400px] w-full border border-slate-200 rounded-xl p-4 bg-white">
           <canvas id="individualChart"></canvas>
         </div>
@@ -353,6 +379,39 @@
           <div class="bg-blue-50 border border-blue-200 p-5 rounded-xl shadow-inner space-y-2">
             <h4 class="font-bold text-blue-900 text-sm"><i class="fa-solid fa-compass mr-2"></i>คำแนะนำการปรับสมดุลพอร์ต (Rebalancing)</h4>
             <div id="alloc-advice-box" class="text-xs font-medium text-blue-800 space-y-1.5 leading-relaxed"></div>
+          </div>
+        </div>
+
+        <!-- DCA Rebalancing Card -->
+        <div class="mt-6 border border-slate-200 rounded-2xl p-5 bg-white shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i class="fa-solid fa-calculator text-blue-600"></i>
+                คำนวณเติมเงิน DCA ปรับสมดุลพอร์ต (Smart Cash Rebalance)
+              </h3>
+              <p class="text-xs text-slate-500 mt-0.5">กระจายเงินลงทุนงวดใหม่เข้าสินทรัพย์ที่ขาดเป้า เพื่อปรับพอร์ตให้เข้าสู่เป้าหมายโดยไม่ต้องขายของเดิม</p>
+            </div>
+            <div class="flex items-center space-x-2 w-full sm:w-auto">
+              <label class="text-xs font-bold text-slate-600 whitespace-nowrap">ยอดเงินงวดนี้ (บ.):</label>
+              <input type="text" inputmode="decimal" id="dca-amount-input" placeholder="เช่น 20,000" oninput="calculateDcaRebalance()" onblur="this.value = formatNumber(parseLocalNumber(this.value))" class="p-2 border border-slate-300 rounded-lg text-xs font-bold outline-none font-mono text-blue-700 w-36 bg-white">
+            </div>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left border-collapse bg-white text-xs">
+              <thead>
+                <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-extrabold">
+                  <th class="p-3">ประเภทย่อย</th>
+                  <th class="p-3 text-right">เป้าหมาย</th>
+                  <th class="p-3 text-right">มูลค่าปัจจุบัน</th>
+                  <th class="p-3 text-right text-emerald-700 bg-emerald-50/50">เงินที่ควรเติมงวดนี้ (บ.)</th>
+                  <th class="p-3 text-right">มูลค่าหลังเติม (บ.)</th>
+                  <th class="p-3 text-right">สัดส่วนหลังเติม (%)</th>
+                </tr>
+              </thead>
+              <tbody id="alloc-dca-table-body" class="font-semibold text-slate-700"></tbody>
+            </table>
           </div>
         </div>
 

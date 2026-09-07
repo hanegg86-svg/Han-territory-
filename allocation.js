@@ -293,6 +293,127 @@ function calculateAllocation(shouldSaveState = false) {
   renderPortfolioTrendChart(sortedMonths);
   renderHistoricalAllocationChart();
   renderHistoricalAllocationTable();
+  calculateDcaRebalance();
+}
+
+// ================= SMART CASH DCA REBALANCING ROUTER =================
+function calculateDcaRebalance() {
+  const dcaInput = document.getElementById('dca-amount-input');
+  const dcaTbody = document.getElementById('alloc-dca-table-body');
+  if (!dcaTbody) return;
+  dcaTbody.innerHTML = '';
+
+  const dcaAmount = dcaInput ? parseLocalNumber(dcaInput.value) : 0;
+
+  const monthSelect = document.getElementById('alloc-month-select');
+  const targetMonth = monthSelect ? monthSelect.value : getCurrentMonth();
+
+  const inputs = document.querySelectorAll('.subcat-target-input');
+  let targets = {};
+  inputs.forEach(input => {
+    const subName = input.getAttribute('data-subname');
+    targets[subName] = parseFloat(input.value) || 0;
+  });
+
+  let currentSubTotals = {};
+  let totalWealthInGroup = 0;
+
+  if (db.records && db.records[targetMonth]) {
+    (db.funds || []).forEach(f => {
+      const fundVal = db.records[targetMonth][f.id] || 0;
+      if (f.subCategories && f.subCategories.length > 0) {
+        f.subCategories.forEach(sub => {
+          const sName = (sub.name || '').trim();
+          if (selectedSubCatsForCompare.includes(sName)) {
+            if (!currentSubTotals[sName]) currentSubTotals[sName] = 0;
+            const portion = fundVal * (sub.weight / 100);
+            currentSubTotals[sName] += portion;
+            totalWealthInGroup += portion;
+          }
+        });
+      } else {
+        if (selectedSubCatsForCompare.includes('ยังไม่ได้ระบุประเภทย่อย')) {
+          if (!currentSubTotals['ยังไม่ได้ระบุประเภทย่อย']) currentSubTotals['ยังไม่ได้ระบุประเภทย่อย'] = 0;
+          currentSubTotals['ยังไม่ได้ระบุประเภทย่อย'] += fundVal;
+          totalWealthInGroup += fundVal;
+        }
+      }
+    });
+  }
+
+  if (selectedSubCatsForCompare.length === 0) {
+    dcaTbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400">กรุณาเลือกประเภทย่อยเพื่อคำนวณ</td></tr>`;
+    return;
+  }
+
+  const projectedTotalWealth = totalWealthInGroup + dcaAmount;
+
+  // 1. คำนวณหา Gap ขาดเป้าของแต่ละหมวด
+  let shortfalls = {};
+  let totalShortfall = 0;
+
+  selectedSubCatsForCompare.forEach(subName => {
+    const cVal = currentSubTotals[subName.trim()] || 0;
+    const targetPct = targets[subName] || 0;
+    const idealVal = projectedTotalWealth * (targetPct / 100);
+    const gap = Math.max(0, idealVal - cVal);
+    shortfalls[subName] = gap;
+    totalShortfall += gap;
+  });
+
+  // 2. จัดสรรเงินงวดใหม่ตามสัดส่วน Shortfall
+  let allocations = {};
+
+  if (dcaAmount > 0) {
+    if (totalShortfall > 0) {
+      if (dcaAmount <= totalShortfall) {
+        // หากเงินใหม่น้อยกว่ายอดขาดเป้า ให้เกลี่ยตามสัดส่วนที่ขาด
+        selectedSubCatsForCompare.forEach(subName => {
+          allocations[subName] = dcaAmount * (shortfalls[subName] / totalShortfall);
+        });
+      } else {
+        // หากเงินใหม่มากกว่ายอดขาด ให้เติมเต็มทุกตัวที่ขาด แล้วเงินที่เหลือแบ่งตาม Target %
+        let remainingCash = dcaAmount - totalShortfall;
+        selectedSubCatsForCompare.forEach(subName => {
+          const targetPct = targets[subName] || 0;
+          allocations[subName] = shortfalls[subName] + (remainingCash * (targetPct / 100));
+        });
+      }
+    } else {
+      // หากไม่มีส่วนขาดเลย ให้แบ่งตามสัดส่วนเป้าหมายปกติ
+      selectedSubCatsForCompare.forEach(subName => {
+        const targetPct = targets[subName] || 0;
+        allocations[subName] = dcaAmount * (targetPct / 100);
+      });
+    }
+  } else {
+    selectedSubCatsForCompare.forEach(subName => allocations[subName] = 0);
+  }
+
+  // 3. แสดงผลลงในตาราง
+  selectedSubCatsForCompare.forEach(subName => {
+    const cVal = currentSubTotals[subName.trim()] || 0;
+    const targetPct = targets[subName] || 0;
+    const addVal = allocations[subName] || 0;
+    const postVal = cVal + addVal;
+    const postPct = projectedTotalWealth > 0 ? (postVal / projectedTotalWealth) * 100 : 0;
+    const safeSub = escapeHtml(subName);
+
+    dcaTbody.innerHTML += `
+      <tr class="border-b border-slate-100 hover:bg-slate-50">
+        <td class="p-3 font-bold text-slate-800">${safeSub}</td>
+        <td class="p-3 text-right font-mono">${targetPct}%</td>
+        <td class="p-3 text-right font-mono text-slate-600">฿${formatNumber(cVal)}</td>
+        <td class="p-3 text-right font-mono font-bold bg-emerald-50/50 text-emerald-700">
+          ${addVal > 0 ? '+฿' + formatNumber(addVal) : '-'}
+        </td>
+        <td class="p-3 text-right font-mono font-bold text-slate-900">฿${formatNumber(postVal)}</td>
+        <td class="p-3 text-right font-mono font-bold ${Math.abs(postPct - targetPct) < 1.0 ? 'text-emerald-600' : 'text-blue-600'}">
+          ${postPct.toFixed(1)}%
+        </td>
+      </tr>
+    `;
+  });
 }
 
 function renderPortfolioTrendChart(monthsArray) {
