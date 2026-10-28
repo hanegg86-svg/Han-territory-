@@ -122,7 +122,17 @@ function renderEntryForm() {
       }
 
       const unitsVal = f.units || 0;
-      const calculatedNav = (unitsVal > 0 && currentAmount > 0) ? (currentAmount / unitsVal).toFixed(4) : '';
+      let calculatedNav = '';
+      if (db.navRecords && db.navRecords[month] && db.navRecords[month][f.id] > 0) {
+        calculatedNav = db.navRecords[month][f.id];
+      } else if (unitsVal > 0 && currentAmount > 0) {
+        calculatedNav = (currentAmount / unitsVal).toFixed(4);
+      } else if (renderUsingCarryForward && sortedMonths.length > 0) {
+        const lastM = sortedMonths[sortedMonths.length - 1];
+        if (db.navRecords && db.navRecords[lastM] && db.navRecords[lastM][f.id] > 0) {
+          calculatedNav = db.navRecords[lastM][f.id];
+        }
+      }
       
       const showNavAndUnits = (cat.id !== 'high' && cat.id !== 'ins');
 
@@ -268,10 +278,20 @@ function saveEntryMonth(month, { showToastFlag = true, silent = false } = {}) {
   if (!month || !db.funds || db.funds.length === 0) return false;
   if (!db.records) db.records = {};
   if (!db.records[month]) db.records[month] = {};
+  if (!db.navRecords) db.navRecords = {};
+  if (!db.navRecords[month]) db.navRecords[month] = {};
   
   db.funds.forEach(f => {
     const input = document.getElementById(`entry-${f.id}`);
     if (input) db.records[month][f.id] = parseLocalNumber(input.value);
+
+    const navInput = document.getElementById(`entry-nav-${f.id}`);
+    if (navInput && navInput.value) {
+      const parsedNav = parseFloat(navInput.value);
+      if (!isNaN(parsedNav) && parsedNav > 0) {
+        db.navRecords[month][f.id] = parsedNav;
+      }
+    }
   });
   saveDB();
 

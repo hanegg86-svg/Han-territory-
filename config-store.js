@@ -11,7 +11,8 @@ let db = {
   transactions: [], 
   planningSettings: {},
   allocationSettings: {},
-  passiveIncomeData: {}
+  passiveIncomeData: {},
+  navRecords: {}
 };
 
 let myChart = null;
@@ -180,6 +181,7 @@ async function loadDB() {
     if(!db.planningSettings) db.planningSettings = {};
     if(!db.allocationSettings) db.allocationSettings = {};
     if(!db.passiveIncomeData) db.passiveIncomeData = {};
+    if(!db.navRecords) db.navRecords = {};
     
     if (db.funds && db.funds.length > 0) {
       db.funds = db.funds.map(f => {
@@ -255,6 +257,7 @@ function restoreFromJson() {
       if(!db.planningSettings) db.planningSettings = {};
       if(!db.allocationSettings) db.allocationSettings = {};
       if(!db.passiveIncomeData) db.passiveIncomeData = {};
+    if(!db.navRecords) db.navRecords = {};
       
       if (db.funds && db.funds.length > 0) {
         db.funds = db.funds.map(f => {

@@ -55,6 +55,7 @@ function switchTab(tabId) {
   if (tabId === 'tab-entry') initEntryTab();
   if (tabId === 'tab-compare') initCompareTab();
   if (tabId === 'tab-charts') initChartsTab();
+  if (tabId === 'tab-nav') initNavChartTab();
   if (tabId === 'tab-planning') initPlanningTab();
   if (tabId === 'tab-transactions') initTransactionsTab();
   if (tabId === 'tab-allocation') initAllocationTab();
@@ -68,6 +69,7 @@ function refreshCurrentTab() {
     if (currentTab === 'tab-entry') initEntryTab();
     if (currentTab === 'tab-compare') initCompareTab();
     if (currentTab === 'tab-charts') initChartsTab();
+    if (currentTab === 'tab-nav') initNavChartTab();
     if (currentTab === 'tab-planning') initPlanningTab();
     if (currentTab === 'tab-transactions') initTransactionsTab();
     if (currentTab === 'tab-allocation') initAllocationTab();

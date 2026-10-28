@@ -1,78 +1,121 @@
-// อัปเดตเวอร์ชันเป็น v3.9.0 เพื่อบังคับเคลียร์ Cache เก่าในเบราว์เซอร์
-const CACHE_NAME = 'wealth-tracker-v3.9.0';
+// ================= SERVICE WORKER WITH AUTOMATIC CACHE CLEARING =================
+const CACHE_VERSION = 'v3.6.0';
+const CACHE_NAME = `prowealth-cache-${CACHE_VERSION}`;
 
-// รายการไฟล์ทั้งหมดใน Root Folder ที่ต้องการให้ Service Worker ทำการ Caching ไว้สำหรับ Offline Mode
-const ASSETS_TO_CACHE = [
+// รายการไฟล์ Core App ที่ต้องบันทึกลงแคชเพื่อใช้งานแบบ Offline
+const STATIC_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icon.png',
   './config-store.js',
   './api-gemini.js',
-  // รายการไฟล์ย่อยทั้งหมดใน Root Folder
   './setup.js',
   './entry.js',
   './compare.js',
   './charts.js',
+  './nav-charts.js',
   './allocation.js',
   './planning.js',
   './passive-income.js',
   './transactions.js',
-  './app.js',
-  // External Libraries
-  'https://cdn.tailwindcss.com',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
-  'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js'
+  './app.js'
 ];
 
-// 1. Install Event: ทำการดาวน์โหลดและเก็บบันทึกไฟล์ลง Cache Storage
+// 1. INSTALL: ติดตั้ง Service Worker และดึงไฟล์เข้าแคช
 self.addEventListener('install', (event) => {
+  console.log(`[SW] Installing Service Worker ${CACHE_VERSION}...`);
+  // บังคับให้ Service Worker ใหม่เริ่มทำงานทันทีโดยไม่ต้องรอแท็บเก่าปิด (skipWaiting)
+  self.skipWaiting();
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Caching all static assets');
-      return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+      console.log('[SW] Pre-caching offline assets...');
+      return Promise.allSettled(
+        STATIC_ASSETS.map((url) =>
+          cache.add(url).catch((err) => {
+            console.warn(`[SW] Could not cache asset: ${url}`, err);
+          })
+        )
+      );
+    })
   );
 });
 
-// 2. Activate Event: ลบ Cache เวอร์ชั่นเก่าทิ้งทันทีที่มีการอัปเดตเวอร์ชัน
+// 2. ACTIVATE: ล้างแคชเวอร์ชันเก่าทั้งหมดทิ้งอัตโนมัติ
 self.addEventListener('activate', (event) => {
+  console.log(`[SW] Activating Service Worker ${CACHE_VERSION}...`);
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('[Service Worker] Deleting old cache:', cache);
-            return caches.delete(cache);
+        cacheNames.map((existingCache) => {
+          // หากชื่อแคชไม่ตรงกับแคชเวอร์ชันปัจจุบัน ให้ทำการลบทิ้งทันที
+          if (existingCache !== CACHE_NAME) {
+            console.log(`[SW] Deleting old cache: ${existingCache}`);
+            return caches.delete(existingCache);
           }
         })
       );
-    }).then(() => self.clients.claim())
+    }).then(() => {
+      // ควบคุมหน้าเว็บทั้งหมดทันที
+      return self.clients.claim();
+    })
   );
 });
 
-// 3. Fetch Event: ดึงข้อมูลจาก Cache ก่อน หากไม่มีค่อยดึงจาก Network
+// 3. FETCH: กลยุทธ์ Network-First with Cache Fallback
+// ดึงข้อมูลสดจาก Network ก่อนเสมอ เพื่อให้ได้โค้ดเวอร์ชันล่าสุดเสมอ หาก Offline จึงดึงจากแคช
 self.addEventListener('fetch', (event) => {
-  // ข้ามคำขอที่ไม่ใช่ GET หรือการเรียก Gemini API
-  if (event.request.method !== 'GET' || event.request.url.includes('generativelanguage.googleapis.com')) {
+  // รองรับเฉพาะ GET request
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
+  // ข้ามการแคชสำหรับ Gemini API
+  if (url.hostname.includes('googleapis.com')) {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // คืนค่าไฟล์จาก Cache และทำ Background Refresh
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
+    fetch(event.request)
+      .then((networkResponse) => {
+        // หากดึงผ่าน Network สำเร็จ ให้นำไปอัปเดตลงแคช
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        // หากไม่มีอินเทอร์เน็ต (Offline) ให้ดึงจากแคชที่มีอยู่
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
           }
-        }).catch(() => {/* Ignore network errors when offline */});
-        
-        return cachedResponse;
-      }
-      
-      return fetch(event.request);
-    })
+          // หากขอไฟล์ html แล้วไม่พบ ให้ fallback ไปที่ index.html
+          if (event.request.headers.get('accept')?.includes('text/html')) {
+            return caches.match('./index.html');
+          }
+        });
+      })
   );
+});
+
+// 4. MESSAGE: รับคำสั่งล้างแคชหรือข้ามการรอจากหน้าเว็บ
+self.addEventListener('message', (event) => {
+  if (event.data) {
+    if (event.data.action === 'skipWaiting') {
+      self.skipWaiting();
+    }
+    if (event.data.action === 'clearCache') {
+      caches.keys().then((names) => {
+        return Promise.all(names.map((name) => caches.delete(name)));
+      }).then(() => {
+        if (event.ports && event.ports[0]) {
+          event.ports[0].postMessage({ success: true });
+        }
+      });
+    }
+  }
 });

@@ -412,3 +412,62 @@ async function analyzeChartWithGemini(base64Data, statsText) {
     return null;
   }
 }
+
+// ================= GEMINI AI NAV TREND & DIRECTION ANALYZER =================
+async function analyzeNavTrendWithGemini(base64Data, statsText) {
+  const apiKey = getStoredApiKey();
+  if (!apiKey) {
+    alert('กรุณากรอกและบันทึก Gemini API Key ในแท็บ "ตั้งค่า" ก่อนเปิดใช้งานการวิเคราะห์ครับ');
+    switchTab('tab-setup');
+    return null;
+  }
+
+  const promptText = `
+    คุณคือผู้เชี่ยวชาญด้านการวิเคราะห์กองทุนรวมและสินทรัพย์ทางการเงินระดับมืออาชีพ
+    โปรดวิเคราะห์รูปภาพกราฟประวัติและแนวโน้มค่า NAV (มูลค่าทรัพย์สินสุทธิต่อหน่วย) ของกองทุนนี้
+    ควบคู่กับข้อมูลสถิติผลตอบแทนและการเปลี่ยนแปลงของค่า NAV ดังต่อไปนี้:
+
+    ${statsText}
+
+    กรุณาสรุปบทวิเคราะห์เชิงลึกเป็นภาษาไทยแบบกระชับ ชัดเจน ตรงประเด็น เหมาะกับการเปิดอ่านบนมือถือ โดยจัดโครงสร้างดังนี้:
+    1. 📊 การประเมินทิศทางและแนวโน้มของค่า NAV (Trend Direction & Momentum: กำลังอยู่ในแนวโน้มขาขึ้น Uptrend, ขาลง Downtrend หรือแกว่งตัวสะสมกำลัง Sideway)
+    2. 🔍 การวิเคราะห์จุดสูงสุด/ต่ำสุดและความผันผวน (High/Low & Drawdown: เทียบระดับราคาปัจจุบันกับจุดสูงสุดในอดีต และความเสี่ยงจากการย่อตัว)
+    3. 🎯 คำแนะนำและกลยุทธ์การลงทุนเชิงปฏิบัติการ (Actionable Fund Strategy: จังหวะเข้าสะสมแบบ DCA, จังหวะรอซื้อเมื่อย่อตัวเข้าแนวรับ, หรือการปรับสมดุลสัดส่วน)
+
+    จัดรูปแบบข้อความด้วย Markdown ที่อ่านง่าย ไม่ใช้ศัพท์เทคนิคที่ซับซ้อนเกินไป และให้คำแนะนำที่สามารถนำไปปรับใช้ได้จริง
+  `;
+
+  try {
+    // ✅ ใช้ gemini-3.5-flash-lite ตรงตามที่กำหนด
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: promptText },
+            { inline_data: { mime_type: 'image/png', data: base64Data } }
+          ]
+        }]
+      })
+    });
+
+    const resData = await response.json();
+    if (resData.error) {
+      console.error("Gemini NAV Analysis Error:", resData.error);
+      alert('Gemini Error: ' + resData.error.message);
+      return null;
+    }
+
+    if (!resData.candidates || !resData.candidates[0] || !resData.candidates[0].content || !resData.candidates[0].content.parts || !resData.candidates[0].content.parts[0]) {
+      alert('Gemini ไม่สามารถวิเคราะห์ภาพกราฟ NAV นี้ได้ กรุณาลองใหม่อีกครั้ง');
+      return null;
+    }
+
+    return resData.candidates[0].content.parts[0].text;
+  } catch (err) {
+    console.error("Analyze NAV Error:", err);
+    alert('เกิดข้อผิดพลาดในการวิเคราะห์กราฟ NAV: ' + err.message);
+    return null;
+  }
+}
