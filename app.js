@@ -3,9 +3,65 @@ let deferredPrompt;
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('Service Worker Registered Successfully!'))
+      .then(reg => {
+        console.log('Service Worker Registered Successfully!');
+        // ตรวจจับการอัปเดต Service Worker ใหม่
+        reg.onupdatefound = () => {
+          const installingWorker = reg.installing;
+          if (!installingWorker) return;
+          installingWorker.onstatechange = () => {
+            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('New content available; please refresh.');
+              if (confirm('มีเวอร์ชันใหม่ของแอปพร้อมใช้งาน! ต้องการรีโหลดเพื่ออัปเดตทันทีหรือไม่?')) {
+                installingWorker.postMessage({ action: 'skipWaiting' });
+                window.location.reload();
+              }
+            }
+          };
+        };
+      })
       .catch(err => console.error('Service Worker Registration Failed:', err));
   });
+
+  // เมื่อ Service Worker ตัวใหม่เข้าควบคุม ให้รีโหลดหน้าอัตโนมัติหากมีการสั่ง skipWaiting
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
+  });
+}
+
+// ฟังก์ชันล้างแคช Service Worker และรีโหลดแอปใหม่ทั้งหมด (คงข้อมูล IndexedDB เดิมไว้)
+async function clearAppCacheAndReload() {
+  if (confirm('ต้องการล้างแคช Service Worker และโหลดไฟล์แอปเวอร์ชันล่าสุดใช่หรือไม่?\n\n(ข้อมูลพอร์ตและประวัติการซื้อขายที่บันทึกไว้จะไม่สูญหาย)')) {
+    showToast('กำลังล้างแคชและอัปเดตแอป...');
+
+    try {
+      // 1. ลบไฟล์ทั้งหมดใน Cache Storage
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+
+      // 2. ยกเลิกการลงทะเบียน Service Worker ตัวเดิม
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (let registration of registrations) {
+          await registration.unregister();
+        }
+      }
+
+      // 3. หน่วงเวลาเล็กน้อยแล้วสั่ง Hard Reload
+      setTimeout(() => {
+        window.location.href = window.location.pathname + '?reload=' + Date.now();
+      }, 600);
+    } catch (err) {
+      console.error('Clear Cache Error:', err);
+      window.location.reload();
+    }
+  }
 }
 
 window.addEventListener('beforeinstallprompt', (e) => {

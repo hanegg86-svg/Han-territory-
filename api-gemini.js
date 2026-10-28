@@ -413,6 +413,7 @@ async function analyzeChartWithGemini(base64Data, statsText) {
   }
 }
 
+
 // ================= GEMINI AI NAV TREND & DIRECTION ANALYZER =================
 async function analyzeNavTrendWithGemini(base64Data, statsText) {
   const apiKey = getStoredApiKey();
