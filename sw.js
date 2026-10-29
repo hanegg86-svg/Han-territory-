@@ -1,5 +1,5 @@
 // ================= SERVICE WORKER WITH AUTOMATIC CACHE CLEARING =================
-const CACHE_VERSION = 'v3.6.0';
+const CACHE_VERSION = 'v3.7.0';
 const CACHE_NAME = `prowealth-cache-${CACHE_VERSION}`;
 
 // รายการไฟล์ Core App ที่ต้องบันทึกลงแคชเพื่อใช้งานแบบ Offline

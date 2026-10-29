@@ -33,6 +33,31 @@ function getDisplayDataForMonth(month) {
   return {};
 }
 
+// ฟังก์ชันดึงจำนวนหน่วยลงทุนเฉพาะของเดือนนั้นๆ (แยกอิสระจากเดือนอื่น)
+function getFundUnitsForMonth(fundId, month) {
+  if (!fundId || !month) return 0;
+
+  // 1. ตรวจสอบใน db.unitRecords ของเดือนนั้นโดยตรง
+  if (db.unitRecords && db.unitRecords[month] && db.unitRecords[month][fundId] !== undefined) {
+    const u = parseFloat(db.unitRecords[month][fundId]);
+    if (!isNaN(u) && u > 0) return u;
+  }
+
+  // 2. หากยังไม่มีในเดือนนั้น ให้ค้นหาหน่วยลงทุนของเดือนก่อนหน้าล่าสุดที่มีการบันทึกไว้
+  const sortedRecordedMonths = Object.keys(db.unitRecords || {})
+    .filter(m => m < month && db.unitRecords[m] && parseFloat(db.unitRecords[m][fundId]) > 0)
+    .sort();
+
+  if (sortedRecordedMonths.length > 0) {
+    const lastMonth = sortedRecordedMonths[sortedRecordedMonths.length - 1];
+    return parseFloat(db.unitRecords[lastMonth][fundId]) || 0;
+  }
+
+  // 3. Fallback: ถ้ายังไม่มีประวัติใน unitRecords เลย ให้ใช้ f.units เริ่มต้น
+  const fund = (db.funds || []).find(f => f.id === fundId);
+  return fund ? (parseFloat(fund.units) || 0) : 0;
+}
+
 function autoCalcMonthlyFund(fundId, changedField) {
   const navEl = document.getElementById(`entry-nav-${fundId}`);
   const unitsEl = document.getElementById(`entry-units-${fundId}`);
@@ -54,9 +79,14 @@ function autoCalcMonthlyFund(fundId, changedField) {
     }
   }
 
-  const fund = (db.funds || []).find(f => f.id === fundId);
-  if (fund && units > 0) {
-    fund.units = units;
+  const mInput = document.getElementById('entry-month');
+  const targetMonth = activeEntryMonth || (mInput ? mInput.value : getCurrentMonth());
+
+  if (!db.unitRecords) db.unitRecords = {};
+  if (!db.unitRecords[targetMonth]) db.unitRecords[targetMonth] = {};
+
+  if (units > 0) {
+    db.unitRecords[targetMonth][fundId] = units;
     saveDB();
   }
 
@@ -121,7 +151,7 @@ function renderEntryForm() {
         diffHtml = `เทียบเดือนก่อน: <span class="${colorClass}">${sign}${formatNumber(fundDiff)} บ. (${sign}${fundPct.toFixed(2)}%)</span>`;
       }
 
-      const unitsVal = f.units || 0;
+      const unitsVal = getFundUnitsForMonth(f.id, month);
       let calculatedNav = '';
       if (db.navRecords && db.navRecords[month] && db.navRecords[month][f.id] > 0) {
         calculatedNav = db.navRecords[month][f.id];
@@ -280,6 +310,8 @@ function saveEntryMonth(month, { showToastFlag = true, silent = false } = {}) {
   if (!db.records[month]) db.records[month] = {};
   if (!db.navRecords) db.navRecords = {};
   if (!db.navRecords[month]) db.navRecords[month] = {};
+  if (!db.unitRecords) db.unitRecords = {};
+  if (!db.unitRecords[month]) db.unitRecords[month] = {};
   
   db.funds.forEach(f => {
     const input = document.getElementById(`entry-${f.id}`);
@@ -290,6 +322,14 @@ function saveEntryMonth(month, { showToastFlag = true, silent = false } = {}) {
       const parsedNav = parseFloat(navInput.value);
       if (!isNaN(parsedNav) && parsedNav > 0) {
         db.navRecords[month][f.id] = parsedNav;
+      }
+    }
+
+    const unitsInput = document.getElementById(`entry-units-${f.id}`);
+    if (unitsInput && unitsInput.value) {
+      const parsedUnits = parseFloat(unitsInput.value);
+      if (!isNaN(parsedUnits) && parsedUnits > 0) {
+        db.unitRecords[month][f.id] = parsedUnits;
       }
     }
   });

@@ -11,9 +11,16 @@ function getFundNavForMonth(fundId, monthStr) {
     if (!isNaN(val) && val > 0) return val;
   }
 
-  // 2. Fallback: คำนวณจาก มูลค่ารวม (Market Value) / จำนวนหน่วย (Units)
-  const fund = (db.funds || []).find(f => f.id === fundId);
-  const units = fund ? parseFloat(fund.units) || 0 : 0;
+  // 2. Fallback: คำนวณจาก มูลค่ารวม (Market Value) / จำนวนหน่วย (Units) ของเดือนนั้น
+  let units = 0;
+  if (typeof getFundUnitsForMonth === 'function') {
+    units = getFundUnitsForMonth(fundId, monthStr);
+  } else if (db.unitRecords && db.unitRecords[monthStr] && db.unitRecords[monthStr][fundId]) {
+    units = parseFloat(db.unitRecords[monthStr][fundId]) || 0;
+  } else {
+    const fund = (db.funds || []).find(f => f.id === fundId);
+    units = fund ? parseFloat(fund.units) || 0 : 0;
+  }
   const monthRecord = (db.records && db.records[monthStr]) ? db.records[monthStr] : null;
   const totalVal = monthRecord ? parseFloat(monthRecord[fundId]) || 0 : 0;
 
@@ -36,7 +43,10 @@ function getFundsWithNav() {
   // 3. หรือ มีข้อมูลใน db.navRecords
   let filtered = funds.filter(f => {
     const isEligibleCat = (f.catId !== 'high' && f.catId !== 'ins');
-    const hasUnits = (parseFloat(f.units) || 0) > 0;
+    let hasUnits = (parseFloat(f.units) || 0) > 0;
+    if (db.unitRecords) {
+      hasUnits = hasUnits || Object.keys(db.unitRecords).some(m => (parseFloat(db.unitRecords[m][f.id]) || 0) > 0);
+    }
     
     let hasSavedNav = false;
     if (db.navRecords) {

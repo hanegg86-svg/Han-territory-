@@ -12,7 +12,8 @@ let db = {
   planningSettings: {},
   allocationSettings: {},
   passiveIncomeData: {},
-  navRecords: {}
+  navRecords: {},
+  unitRecords: {}
 };
 
 let myChart = null;
@@ -182,6 +183,7 @@ async function loadDB() {
     if(!db.allocationSettings) db.allocationSettings = {};
     if(!db.passiveIncomeData) db.passiveIncomeData = {};
     if(!db.navRecords) db.navRecords = {};
+    if(!db.unitRecords) db.unitRecords = {};
     
     if (db.funds && db.funds.length > 0) {
       db.funds = db.funds.map(f => {
@@ -258,6 +260,7 @@ function restoreFromJson() {
       if(!db.allocationSettings) db.allocationSettings = {};
       if(!db.passiveIncomeData) db.passiveIncomeData = {};
     if(!db.navRecords) db.navRecords = {};
+    if(!db.unitRecords) db.unitRecords = {};
       
       if (db.funds && db.funds.length > 0) {
         db.funds = db.funds.map(f => {
